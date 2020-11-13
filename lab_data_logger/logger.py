@@ -2,7 +2,6 @@ from multiprocessing import Pipe, Process, Queue  # noqa: D100
 from time import sleep
 
 import rpyc
-from blessings import Terminal
 from influxdb import InfluxDBClient
 
 
@@ -28,14 +27,7 @@ class Puller:
         Logging interval in seconds.
     """
 
-    def __init__(
-        self,
-        queue,
-        host="localhost",
-        port=18861,
-        measurement="test",
-        interval=1,
-    ):
+    def __init__(self, queue, host, port, measurement, interval):
         self.queue = queue
         self.host = host
         self.port = port
@@ -68,7 +60,11 @@ class Puller:
         # only used inside a multiprocessing.Process
         counter = 0
         service = rpyc.connect(self.host, self.port)
-        print("Connected to {}".format(service.root.get_service_name()))
+        print(
+            "Connected to {} on port {}".format(
+                service.root.get_service_name(), self.port
+            )
+        )
         while True:
             data = service.root.exposed_get_data()
             data["measurement"] = self.measurement
@@ -87,26 +83,18 @@ class Pusher:
     queue : multiprocessing.Queue
         A queue that the pulled data is written to.
     host : str
-        Hostname of the InfluxDB (default 'localhost').
+        Hostname of the InfluxDB.
     port : int
-        Port of the InfluxDB  (default 8083).
+        Port of the InfluxDB.
     user : str
-        Username of the InfluxDB (default None).
+        Username of the InfluxDB.
     password : str
-        Password for the InfluxDB (default None).
+        Password for the InfluxDB.
     database : str
-        Name of the database that should be used (default "test")
+        Name of the database that should be used.
     """
 
-    def __init__(
-        self,
-        queue,
-        host="localhost",
-        port=8083,
-        user=None,
-        password=None,
-        database="test",
-    ):
+    def __init__(self, queue, host, port, user, password, database):
         self.queue = queue
         self.host = host
         self.port = port
@@ -144,66 +132,72 @@ class Pusher:
             pipe_to_parent.send(counter)
 
 
-class Logger:
+class Logger(rpyc.Service):
     """
-    Class comprised of a Pusher and a number of Pullers and methods for managing them.
+    Service comprised of a Pusher and a number of Pullers and methods for managing them.
 
     Parameters
     ----------
-    pusher_cfg : dict
-        Contains the keyworded arguments for instantiating the Pusher.
-    puller_cfgs : list of dict
-        A list of dictionaries, containing the keyworded arguments for instantiating
-        the Pullers objects.
+    host : str
+        Hostname of the InfluxDB.
+    port : int
+        Port of the InfluxDB.
+    user : str
+        Username of the InfluxDB.
+    password : str
+        Password for the InfluxDB.
+    database : str
+        Name of the database that should be used.
     """
 
-    def __init__(self, pusher_cfg, puller_cfgs=[]):
-
+    def __init__(self, host, port, user, password, database):
+        super(Logger, self).__init__()
         self.queue = Queue()
-        self.start_pusher_process(pusher_cfg)
+        self.start_pusher_process(host, port, user, password, database)
+        self.exposed_pullers = []
 
-        self.pullers = []
-        for puller_cfg in puller_cfgs:
-            self.start_puller_process(puller_cfg)
+    def start_pusher_process(self, host, port, user, password, database):
+        """
+        Start the Pusher process.
 
-    def start_pusher_process(self, pusher_cfg):
-        """Start the Pusher process."""
-        self.pusher = Pusher(self.queue, **pusher_cfg)
+        Parameters
+        ----------
+        host : str
+            Hostname of the InfluxDB.
+        port : int
+            Port of the InfluxDB.
+        user : str
+            Username of the InfluxDB.
+        password : str
+            Password for the InfluxDB.
+        database : str
+            Name of the database that should be used.
+        """
+        self.pusher = Pusher(self.queue, host, port, user, password, database)
         self.pusher.start_process()
 
-    def start_puller_process(self, puller_cfg):
+    def exposed_start_puller_process(self, host, port, measurement, interval):
         """Start a Puller process."""
-        puller = Puller(self.queue, **puller_cfg)
+        puller = Puller(self.queue, host, port, measurement, interval)
         puller.start_process()
-        self.pullers.append(puller)
+        self.exposed_pullers.append(puller)
 
-    def print_status(self):
+    def exposed_get_display_text(self):
         """Print status of connected DataServices and the InfluxDB, continously."""
-        term = Terminal()
-        with term.fullscreen():
-            while True:
-                display_text = "\nLAB DATA LOGGER\n"
-                display_text += "Logging to {} on {}:{} (processed entry {}).\n".format(
-                    self.pusher.database,
-                    self.pusher.host,
-                    self.pusher.port,
-                    self.pusher.counter,
-                )
+        display_text = "\nLAB DATA LOGGER\n"
+        display_text += "Logging to {} on {}:{} (processed entry {}).\n".format(
+            self.pusher.database,
+            self.pusher.host,
+            self.pusher.port,
+            self.pusher.counter,
+        )
 
-                display_text += "Pulling from these services:\n"
-                display_text += (
-                    "MEASUREMENT   |     HOSTNAME     |    PORT    |   COUNTER   \n"
-                )
-                display_text += (
-                    "-----------   |   ------------   |   ------   |   -------   \n"
-                )
-                for puller in self.pullers:
-                    display_text += (
-                        "{:11.11}   |   {:12.12}   |   {:6d}   |   {:7d}\n".format(
-                            puller.measurement, puller.host, puller.port, puller.counter
-                        )
-                    )
+        display_text += "Pulling from these services:\n"
+        display_text += "MEASUREMENT   |     HOSTNAME     |    PORT    |   COUNTER   \n"
+        display_text += "-----------   |   ------------   |   ------   |   -------   \n"
+        for puller in self.exposed_pullers:
+            display_text += "{:11.11}   |   {:12.12}   |   {:6d}   |   {:7d}\n".format(
+                puller.measurement, puller.host, puller.port, puller.counter
+            )
 
-                print(term.clear())
-                print(display_text)
-                sleep(0.5)
+        return display_text

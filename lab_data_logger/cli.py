@@ -1,21 +1,35 @@
-import click  # noqa D100
-from .logger import Logger
+import importlib
 from multiprocessing import Process
+from time import sleep
+
+import click  # noqa D100
 import rpyc
 from rpyc.utils.server import ThreadedServer
-import importlib
+
+from .logger import Logger
 
 rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
 
 
 @click.group()
 @click.version_option()
-def cli():
+def ldl():
     """CLI tool for using Lab Data Logger (LDL)."""
     pass
 
 
-@cli.group(chain=True)
+@ldl.group(chain=True)
+@click.option(
+    "--port",
+    default=18860,
+    help="Port the Logger service should be startet on (default 18860)",
+)
+@click.pass_context
+def logger(ctx, port):
+    ctx.obj = port  # store the port of the Logger serve
+
+
+@logger.command()
 @click.option(
     "--host", default="localhost", help="Hostname of the InfluxDB (default localhost)"
 )
@@ -23,18 +37,15 @@ def cli():
 @click.option("--user", default=None, help="Username of the InfluxDB (optional)")
 @click.option("--password", default=None, help="Password of the InfluxDB (optional)")
 @click.option("--database", default="test", help="Name of the database (default test")
-@click.pass_context
-def logger(ctx, host, port, user, password, database):
+@click.pass_obj
+def start(logger_port, host, port, user, password, database):
     """Manage the logger components of LDL."""
-    pusher_cfg = {
-        "host": host,
-        "port": port,
-        "user": user,
-        "password": password,
-        "database": database,
-    }
-    logger = Logger(pusher_cfg)
-    ctx.obj = logger
+    logger = Logger(host, port, user, password, database)
+    threaded_server = ThreadedServer(logger, port=logger_port)
+
+    proc = Process(target=threaded_server.start)
+    proc.start()
+    print("Started logger on port {}.".format(logger_port))
 
 
 @logger.command()
@@ -43,25 +54,24 @@ def logger(ctx, host, port, user, password, database):
 @click.option("--measurement", default="test", help="Name of the measurement.")
 @click.option("--interval", default=1, help="Logging interval in seconds.")
 @click.pass_obj
-def pull(logger, host, port, measurement, interval):
+def add(logger_port, host, port, measurement, interval):
     """Add a DataService to the logger."""
-    puller_cfg = {
-        "host": host,
-        "port": port,
-        "measurement": measurement,
-        "interval": interval,
-    }
-    logger.start_puller_process(puller_cfg)
+    logger = rpyc.connect("localhost", logger_port)
+    logger.root.exposed_start_puller_process(host, port, measurement, interval)
 
 
 @logger.command()
 @click.pass_obj
-def show(logger):
+def show(logger_port):
     """Show the status of the logger."""
-    logger.print_status()
+    logger = rpyc.connect("localhost", logger_port)
+    while True:
+        display_text = logger.root.exposed_get_display_text()
+        print(display_text)
+        sleep(0.5)
 
 
-@cli.group(chain=True)
+@ldl.group(chain=True)
 def service():
     """Manage the services of LDL."""
     pass
@@ -72,7 +82,7 @@ def service():
 @click.option(
     "--port", default=18861, help="Port where the service is running (default 18861)."
 )
-def start(service, port):
+def run(service, port):
     """
     Start SERVICE.
 
@@ -91,4 +101,4 @@ def start(service, port):
 
 
 if __name__ == "__main__":
-    cli()
+    ldl()
