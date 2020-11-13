@@ -1,5 +1,75 @@
 # Lab Data Logger ‒ A (distributed) CLI data logger for the (physics) lab.
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+A command-line tool that allows logging of data locally or over a network to a InfluxDB. 
+
+## Installation
+
+```
+pip install lab_data_logger
+```
+
+## Usage
+### Basic usage
+
+Lab Data Logger comes with a CLI tool, `ldl`. To get help with all the available options,
+use `ldl --help`.
+
+In these examples 
+#### Setting up a data source
+
+First, we setup a data service that provides data to be logged. As an example, we use 
+the `RandomNumerService` provided. Here, we want to 
+
+```
+$ ldl service run --port 18862 lab_data_logger.services.RandomNumberService
+Trying to start RandomNumberService from lab_data_logger.services
+Started RandomNumberService on port 18862.
+```
+ 
+#### Setting up the logger
+Second, in order to log te data provided by this service, we first start a logger. We 
+want the Logger to be accessible at port 18866. We pass the default host port and database
+ of the InfluxDB explicitly for demonstration:
+
+
+```
+$ ldl logger --port 18866 start --host localhost --port 8083 --database test
+Started logger on port 18866.
+```
+
+Open another terminal to add the data service to the logger:
+```
+ldl logger --port 18866 add --host localhost --port 18862
+```
+
+If succesful, the terminal where the logger service was started wil print `Connected to RANDOMNUMBER on port 18862`
+
+#### Show logger status
+```
+$ ldl logger --port 18866 show
+LAB DATA LOGGER
+Logging to test on localhost:8083 (processed entry 66).
+Pulling from these services:
+MEASUREMENT   |     HOSTNAME     |    PORT    |   COUNTER   
+-----------   |   ------------   |   ------   |   -------   
+test          |   localhost      |    18862   |        66
+```
+### Creating your own data services
+
+To make use of LDL, you have to create your own data services by subclassing `lab_data_services.services.LabDataService`. An example is given in the examples folder.
+
+To start this data service, use the relative path from your current location, for example
+from the parent directory of the cloned git repo:
+
+```
+$ ldl service run lab_data_logger.examples.const_numbers.ConstNumberService
+Trying to start ConstNumberService from lab_data_logger.examples.const_numbers
+No module lab_data_logger.examples.const_numbers found
+Looking for ConstNumberService in /home/maid/lab_data_logger/examples/const_numbers.py
+Started ConstNumberService on port 18861.
+```
+
 ## Authors
 
 -   Bastian Leykauf (<https://github.com/bleykauf>)

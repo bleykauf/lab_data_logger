@@ -1,6 +1,9 @@
+"""The command-line interface ldl."""
+
 import importlib
 from multiprocessing import Process
 from time import sleep
+import os
 
 import click  # noqa D100
 import rpyc
@@ -91,7 +94,18 @@ def run(service, port):
     """
     service_name = service.split(".")[-1]
     module_name = service[: -len(service_name) - 1]
-    module = importlib.import_module(module_name)
+    try:
+        print("Trying to start {} from {}".format(service_name, module_name))
+        module = importlib.import_module(module_name)
+    # This is a workaround for when the module that contains the service is in the
+    # current directory. In this case ModuleNotFoundError is raised for some reason.
+    except ModuleNotFoundError:
+        print("No module {} found".format(module_name))
+        path_to_file = os.path.join(os.getcwd(), *module_name.split(".")) + ".py"
+        print("Looking for {} in {}".format(service_name, path_to_file))
+        spec = importlib.util.spec_from_file_location(module_name, path_to_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
     service = getattr(module, service_name)
     threaded_server = ThreadedServer(service, port=port)
 

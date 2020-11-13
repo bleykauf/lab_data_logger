@@ -1,4 +1,6 @@
-from multiprocessing import Pipe, Process, Queue  # noqa: D100
+"""The command-line interface ldl."""
+
+from multiprocessing import Pipe, Process, Queue
 from time import sleep
 
 import rpyc

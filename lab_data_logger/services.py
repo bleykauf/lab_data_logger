@@ -1,6 +1,13 @@
-import random  # noqa D100
+"""
+LabDataService template class and one example implemenation.
+
+These are the objects that provide the data that we want to log.
+"""
+
+import random
 import rpyc
 
+# multiprocessing needs pickling
 rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
 
 
