@@ -1,0 +1,7 @@
+pytest
+tox
+black
+flake8
+flake8-docstrings
+pre-commit
+sphinx

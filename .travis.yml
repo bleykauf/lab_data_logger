@@ -1,0 +1,19 @@
+sudo: false
+language: python
+python:
+    - 3.4
+    - 3.5
+    - 3.6
+    - 3.7
+    - 3.8
+install:
+    - pip install tox-travis
+    - pip install pytest-cov
+    - pip install flake8
+    - pip install flake8-docstrings
+    - if [ "$TRAVIS_PYTHON_VERSION" = "3.8" ]; then pip install coveralls; fi
+script:
+    - tox
+    - flake8 lab_data_logger
+after_success:
+    - if [ "$TRAVIS_PYTHON_VERSION" = "3.8" ]; then coveralls; fi

@@ -1,0 +1,16 @@
+name: lab_data_logger_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - pytest
+  - tox
+  - black
+  - flake8
+  - flake8-docstrings
+  - pre-commit
+  - sphinx
+  - rope
+  - pylint
+  - rpyc
+  - influxdb
