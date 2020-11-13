@@ -4,11 +4,11 @@ import rpyc
 rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
 
 
-class DataService(rpyc.Service):
+class LabDataService(rpyc.Service):
     """Base class for other data servies."""
 
     def __init__(self):
-        super(DataService, self).__init__()
+        super(LabDataService, self).__init__()
 
     def exposed_get_data(self):
         """
@@ -26,7 +26,7 @@ class DataService(rpyc.Service):
         raise NotImplementedError()
 
 
-class RandomNumberService(DataService):
+class RandomNumberService(LabDataService):
     """A service that generates random numbers between 0.0 and 1.0."""
 
     def __init__(self):
