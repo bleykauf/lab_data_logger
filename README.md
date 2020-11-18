@@ -23,7 +23,7 @@ First, we setup a data service that provides data to be logged. As an example, w
 the `RandomNumerService` provided. Here, we want to 
 
 ```
-$ ldl services add lab_data_logger.services.RandomNumberService 18862 
+$ ldl services start lab_data_logger.services.RandomNumberService 18862 
 Trying to start RandomNumberService from lab_data_logger.services
 Started RandomNumberService on port 18862.
 ```

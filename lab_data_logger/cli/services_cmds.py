@@ -20,7 +20,7 @@ def services():
 @services.command()
 @click.argument("service")
 @click.argument("port")
-def add(service, port):
+def start(service, port):
     """
     Start SERVICE on PORT.
 
