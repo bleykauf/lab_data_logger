@@ -42,7 +42,7 @@ def add(service, port):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
     service = getattr(module, service_name)
-    threaded_server = rpyc.utils.server.ThreadedServer(service, port=port)
+    threaded_server = rpyc.utils.server.ThreadedServer(service, port=int(port))
 
     proc = Process(target=threaded_server.start)
     proc.start()
