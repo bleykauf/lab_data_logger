@@ -23,7 +23,7 @@ First, we setup a data service that provides data to be logged. As an example, w
 the `RandomNumerService` provided. Here, we want to 
 
 ```
-$ ldl service run --port 18862 lab_data_logger.services.RandomNumberService
+$ ldl services add lab_data_logger.services.RandomNumberService 18862 
 Trying to start RandomNumberService from lab_data_logger.services
 Started RandomNumberService on port 18862.
 ```
@@ -64,11 +64,11 @@ To start this data service, use the relative path from your current location, fo
 from the parent directory of the cloned git repo:
 
 ```
-$ ldl service run lab_data_logger.examples.const_numbers.ConstNumberService
-Trying to start ConstNumberService from lab_data_logger.examples.const_numbers
-No module lab_data_logger.examples.const_numbers found
-Looking for ConstNumberService in /home/maid/lab_data_logger/examples/const_numbers.py
-Started ConstNumberService on port 18861.
+    $ ldl service run lab_data_logger.examples.const_numbers.ConstNumberService
+    Trying to start ConstNumberService from lab_data_logger.examples.const_numbers
+    No module lab_data_logger.examples.const_numbers found
+    Looking for ConstNumberService in /home/maid/lab_data_logger/examples/const_numbers.py
+    Started ConstNumberService on port 18861.
 ```
 
 ## Authors
