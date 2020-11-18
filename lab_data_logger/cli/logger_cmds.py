@@ -31,7 +31,7 @@ def logger(ctx, port):
 @click.option("--database", default="test", help="Name of the database (default test")
 @click.pass_obj  # pass the logger_port
 def start(logger_port, host, port, user, password, database):
-    """Manage the logger components of LDL."""
+    """Start the logger."""
     logger = Logger(host, port, user, password, database)
     threaded_server = rpyc.utils.server.ThreadedServer(logger, port=logger_port)
 
@@ -41,14 +41,19 @@ def start(logger_port, host, port, user, password, database):
 
 
 @logger.command()
-@click.option("--host", default="localhost", help="Hostname of the DataService.")
-@click.option("--port", default=18861, help="Port of the DataService.")
-@click.option("--measurement", default="test", help="Name of the measurement.")
+@click.argument("netloc")
+@click.argument("measurement")
 @click.option("--interval", default=1, help="Logging interval in seconds.")
 @click.pass_obj
-def add(logger_port, host, port, measurement, interval):
-    """Add a DataService to the logger."""
+def add(logger_port, netloc, measurement, interval):
+    """
+    Add DataService located at NETLOC to the logger under the name MEASUREMENT.
+
+    NETLOC is a network location hostname:port or only the port (localhost is assumed).
+    The data will be written to the MEASUREMENT.
+    """
     logger = rpyc.connect("localhost", logger_port)
+    host, port = _parse_netloc(netloc)
     logger.root.exposed_start_puller_process(host, port, measurement, interval)
 
 
@@ -61,3 +66,19 @@ def show(logger_port):
         display_text = logger.root.exposed_get_display_text()
         print(display_text)
         sleep(0.5)
+
+
+def _parse_netloc(netloc):
+    # Split network location pair hostname:port into
+    split_netloc = netloc.split(":")
+    if len(split_netloc) == 2:
+        # host:port pair
+        host = split_netloc[0]
+        port = int(split_netloc[1])
+    elif len(split_netloc) == 1:
+        # only port
+        host = "localhost"
+        port = int(split_netloc[0])
+    else:
+        raise ValueError("'{}' is not a valid location".format(netloc))
+    return host, port

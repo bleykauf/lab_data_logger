@@ -41,8 +41,9 @@ Started logger on port 18866.
 
 Open another terminal to add the data service to the logger:
 ```
-ldl logger --port 18866 add --host localhost --port 18862
+ldl logger --port 18866 add --interval 3 localhost:18862 rand_num1
 ```
+The second argument `rand_num1` is the [measurement](https://docs.influxdata.com/influxdb/v2.0/reference/key-concepts/data-elements/#measurement) the data is written to. The `--interval` option specifies the logging interval (in this case 3 seconds).
 
 If succesful, the terminal where the logger service was started wil print `Connected to RANDOMNUMBER on port 18862`
 
@@ -54,7 +55,7 @@ Logging to test on localhost:8083 (processed entry 66).
 Pulling from these services:
 MEASUREMENT   |     HOSTNAME     |    PORT    |   COUNTER   
 -----------   |   ------------   |   ------   |   -------   
-test          |   localhost      |    18862   |        66
+rand_num1     |   localhost      |    18862   |        66
 ```
 ### Creating your own data services
 
@@ -67,7 +68,7 @@ from the parent directory of the cloned git repo:
     $ ldl service run lab_data_logger.examples.const_numbers.ConstNumberService
     Trying to start ConstNumberService from lab_data_logger.examples.const_numbers
     No module lab_data_logger.examples.const_numbers found
-    Looking for ConstNumberService in /home/maid/lab_data_logger/examples/const_numbers.py
+    Looking for ConstNumberService in ~/lab_data_logger/examples/const_numbers.py
     Started ConstNumberService on port 18861.
 ```
 
