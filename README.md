@@ -1,4 +1,5 @@
 # Lab Data Logger ‒ A (distributed) CLI data logger for the (physics) lab.
+[![PyPI](https://img.shields.io/pypi/v/lab_data_logger?color=blue)](https://pypi.org/project/lab_data_logger/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 A command-line tool that allows logging of data locally or over a network to a InfluxDB. 
