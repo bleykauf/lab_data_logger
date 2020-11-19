@@ -34,7 +34,7 @@ class PiPyADCService(LabDataService):
         self.ads = ADS1256(pipyadc.ADS1256_default_config)
         self.ads.cal_self()
 
-    def exposed_get_data(self, fields=None):
+    def exposed_get_data(self):
         raw_channels = self.ads.read_sequence(self.CH_SEQUENCE)
         voltages = [i * self.ads.v_per_digit for i in raw_channels]
 
