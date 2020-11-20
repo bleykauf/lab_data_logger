@@ -28,7 +28,7 @@ def logger(ctx, port):
 @click.option("--port", default=8083, help="Port of the InfluxDB (default 8083)")
 @click.option("--user", default=None, help="Username of the InfluxDB (optional)")
 @click.option("--password", default=None, help="Password of the InfluxDB (optional)")
-@click.option("--database", default="test", help="Name of the database (default test")
+@click.option("--database", help="Name of the database", prompt="Database name: ")
 @click.pass_obj  # pass the logger_port
 def start(logger_port, host, port, user, password, database):
     """Start the logger."""
