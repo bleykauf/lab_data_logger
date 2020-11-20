@@ -1,6 +1,6 @@
 """Classes and functions related to the Logger part of LDL."""
 
-from multiprocessing import Pipe, Process, Queue
+from multiprocess import Pipe, Process, Queue
 from time import sleep
 
 import rpyc
