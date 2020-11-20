@@ -1,4 +1,4 @@
-"""The command-line interface ldl."""
+"""Classes and functions related to the Logger part of LDL."""
 
 from multiprocessing import Pipe, Process, Queue
 from time import sleep
@@ -203,3 +203,84 @@ class Logger(rpyc.Service):
             )
 
         return display_text
+
+
+def start_logger(logger_port, host, port, user, password, database):
+    """
+    Start a Logger in a Process and expose it via a ThreadedServer.
+
+    Parameters
+    ----------
+    logger_port : int
+        The port the Logger's methods should be exposed on.
+    host : str
+        Hostname of the InfluxDB.
+    port : int
+        Port of the InfluxDB
+    user : str
+        Username of the InfluxDB.
+    password : str
+        Password of the InfluxDB.
+    database : str
+        Name of the InfluxDB database.
+    """
+    logger = Logger(host, port, user, password, database)
+    threaded_server = rpyc.utils.server.ThreadedServer(logger, port=logger_port)
+
+    proc = Process(target=threaded_server.start)
+    proc.start()
+    print("Started logger on port {}.".format(logger_port))
+
+
+def add_puller_to_logger(logger_port, netloc, measurement, interval):
+    """
+    Add a Puller to a Logger.
+
+    Parameters
+    ----------
+    logger_port : int
+        The port the Logger's methods are exposed on.
+    netloc : str or int
+        Network location of the LabDataService that should be pulled. Has the
+        form "hostname:port". If an integer is provided, it is the port on
+        localhost.
+    measurment : str
+        Name of the measurement, i.e. the measurement field of InfluxDB.
+    interval : int
+        Logging interval in seconds.
+    """
+    logger = rpyc.connect("localhost", logger_port)
+    host, port = _parse_netloc(netloc)
+    logger.root.exposed_start_puller_process(host, port, measurement, interval)
+
+
+def show_logger_status(logger_port):
+    """
+    Show the status of a Logger.
+
+    Paramters
+    ---------
+    logger_port : int
+        The port the Logger's methods are exposed on.
+    """
+    logger = rpyc.connect("localhost", logger_port)
+    while True:
+        display_text = logger.root.exposed_get_display_text()
+        print(display_text)
+        sleep(0.5)
+
+
+def _parse_netloc(netloc):
+    # Split network location pair hostname:port into
+    split_netloc = netloc.split(":")
+    if len(split_netloc) == 2:
+        # host:port pair
+        host = split_netloc[0]
+        port = int(split_netloc[1])
+    elif len(split_netloc) == 1:
+        # only port
+        host = "localhost"
+        port = int(split_netloc[0])
+    else:
+        raise ValueError("'{}' is not a valid location".format(netloc))
+    return host, port

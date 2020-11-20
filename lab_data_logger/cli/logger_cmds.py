@@ -3,7 +3,7 @@
 import click
 
 from multiprocessing import Process
-from ..logger import Logger
+from ..logger import start_logger, add_puller_to_logger, show_logger_status
 import rpyc
 
 from time import sleep
@@ -32,12 +32,7 @@ def logger(ctx, port):
 @click.pass_obj  # pass the logger_port
 def start(logger_port, host, port, user, password, database):
     """Start the logger."""
-    logger = Logger(host, port, user, password, database)
-    threaded_server = rpyc.utils.server.ThreadedServer(logger, port=logger_port)
-
-    proc = Process(target=threaded_server.start)
-    proc.start()
-    print("Started logger on port {}.".format(logger_port))
+    start_logger(logger_port, host, port, user, password, database)
 
 
 @logger.command()
@@ -52,33 +47,11 @@ def add(logger_port, netloc, measurement, interval):
     NETLOC is a network location hostname:port or only the port (localhost is assumed).
     The data will be written to the MEASUREMENT.
     """
-    logger = rpyc.connect("localhost", logger_port)
-    host, port = _parse_netloc(netloc)
-    logger.root.exposed_start_puller_process(host, port, measurement, interval)
+    add_puller_to_logger(logger_port, netloc, measurement, interval)
 
 
 @logger.command()
 @click.pass_obj
 def show(logger_port):
     """Show the status of the logger."""
-    logger = rpyc.connect("localhost", logger_port)
-    while True:
-        display_text = logger.root.exposed_get_display_text()
-        print(display_text)
-        sleep(0.5)
-
-
-def _parse_netloc(netloc):
-    # Split network location pair hostname:port into
-    split_netloc = netloc.split(":")
-    if len(split_netloc) == 2:
-        # host:port pair
-        host = split_netloc[0]
-        port = int(split_netloc[1])
-    elif len(split_netloc) == 1:
-        # only port
-        host = "localhost"
-        port = int(split_netloc[0])
-    else:
-        raise ValueError("'{}' is not a valid location".format(netloc))
-    return host, port
+    show_logger_status(logger_port)
