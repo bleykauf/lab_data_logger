@@ -8,7 +8,7 @@ import importlib
 import os
 import random
 import sys
-from multiprocessing import Process
+from multiprocess import Process
 
 import rpyc
 
