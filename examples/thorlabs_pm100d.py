@@ -21,7 +21,6 @@ class ThorlabsPM100DService(LabDataService):
             inst = usbtmc.USBTMC()
         elif the_os == "Windows":
             rm = visa.ResourceManager()
-            print(POWERMETER_ADDRESS)
             POWERMETER_ADDRESS = "USB0::0x1313::0x8078::P0020110::INSTR"
             inst = rm.open_resource(POWERMETER_ADDRESS, timeout=1000)
 
