@@ -54,18 +54,24 @@ class Puller:
 
     def _pull(self, queue, shared_counter):
         # only used inside a multiprocessing.Process
-        service = rpyc.connect(self.host, self.port)
-        print(
-            "Connected to {} on port {}".format(
-                service.root.get_service_name(), self.port
+        try:
+            service = rpyc.connect(self.host, self.port)
+            print(
+                "Connected to {} on port {}".format(
+                    service.root.get_service_name(), self.port
+                )
             )
-        )
-        while True:
-            data = service.root.exposed_get_data()
-            data["measurement"] = self.measurement
-            queue.put([data])
-            shared_counter.value += 1
-            sleep(self.interval)
+        except ConnectionRefusedError as error:
+            raise ConnectionRefusedError(
+                "Connection to service at {}:{} refused".format(self.host, self.port)
+            ) from error
+        else:
+            while True:
+                data = service.root.exposed_get_data()
+                data["measurement"] = self.measurement
+                queue.put([data])
+                shared_counter.value += 1
+                sleep(self.interval)
 
 
 class Pusher:
@@ -166,9 +172,13 @@ class Logger(rpyc.Service):
 
     def exposed_start_puller_process(self, host, port, measurement, interval):
         """Start a Puller process."""
-        puller = Puller(self.queue, host, port, measurement, interval)
-        puller.start_process()
-        self.exposed_pullers.append(puller)
+        try:
+            puller = Puller(self.queue, host, port, measurement, interval)
+            puller.start_process()
+        except ConnectionRefusedError as error:
+            print("jfioajfeajfojiaojfiaojfioajifoajifoa")
+        else:
+            self.exposed_pullers.append(puller)
 
     def exposed_get_display_text(self):
         """Print status of connected DataServices and the InfluxDB, continously."""
@@ -239,9 +249,16 @@ def add_puller_to_logger(logger_port, netloc, measurement, interval):
     interval : int
         Logging interval in seconds.
     """
-    logger = rpyc.connect("localhost", logger_port)
-    host, port = _parse_netloc(netloc)
-    logger.root.exposed_start_puller_process(host, port, measurement, interval)
+    try:
+        logger = rpyc.connect("localhost", logger_port)
+    except ConnectionRefusedError as error:
+        raise ConnectionRefusedError(
+            "Connection to Logger refused."
+            "Make sure there a Logger is running on port {}.".format(logger_port),
+        ) from error
+    else:
+        host, port = _parse_netloc(netloc)
+        logger.root.exposed_start_puller_process(host, port, measurement, interval)
 
 
 def show_logger_status(logger_port):
