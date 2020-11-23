@@ -4,9 +4,19 @@ from time import sleep
 
 import rpyc
 from influxdb import InfluxDBClient
-from multiprocess import Process, Queue, Value  # pylint: disable=no-name-in-module
+
+# pylint: disable=no-name-in-module
+from multiprocess import (
+    Process,
+    Queue,
+    Value,
+    Event,
+)
 
 rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
+
+JOIN_TIMEOUT = 1  # timeout for joining processes
+LOGGER_SHOW_INTERVAL = 0.5
 
 
 class Puller:
@@ -35,15 +45,30 @@ class Puller:
         self.measurement = measurement
         self.interval = interval
         # shared value for communicating the processes status
-        self._shared_counter = Value("i", 0)
+        self._shared_counter = Value("i", -1)
+        self.stop_event = Event()
+        self.pull_process = Process(
+            target=self._pull, args=(self.queue, self._shared_counter, self.stop_event)
+        )
 
     def start_process(self):
         """Start process continously pulling data and writing it to the queue."""
-
-        self.pull_process = Process(
-            target=self._pull, args=(self.queue, self._shared_counter)
-        )
         self.pull_process.start()
+
+    def stop_process(self):
+        """
+        Stop process continously pulling data and writing it to the queue.
+
+        Returns
+        -------
+        exitcode : int
+        """
+        self.stop_event.set()
+        self.pull_process.join(JOIN_TIMEOUT)
+        if self.pull_process.is_alive():
+            self.pull_process.terminate()
+        exitcode = self.pull_process.exitcode
+        return exitcode
 
     @property
     def counter(self):
@@ -52,8 +77,8 @@ class Puller:
         """  # noqa D401
         return self._shared_counter.value
 
-    def _pull(self, queue, shared_counter):
-        # only used inside a multiprocessing.Process
+    def _pull(self, queue, shared_counter, stop_event):
+        # the worker of the pulling process
         try:
             service = rpyc.connect(self.host, self.port)
             print(
@@ -66,7 +91,8 @@ class Puller:
                 "Connection to service at {}:{} refused".format(self.host, self.port)
             ) from error
         else:
-            while True:
+            shared_counter.value += 1  # change from -1 to 0
+            while not stop_event.is_set():
                 data = service.root.exposed_get_data()
                 data["measurement"] = self.measurement
                 queue.put([data])
@@ -102,14 +128,14 @@ class Pusher:
         self.influxdb_client = InfluxDBClient(host, port, user, password, database)
 
         # shared value for communicating the processes status
-        self._shared_counter = Value("i", 0)
-
-    def start_process(self):
-        """Start process continously reading the queue and writing to the InfluxDB."""
+        self._shared_counter = Value("i", -1)
 
         self.push_process = Process(
             target=self._push, args=(self.queue, self._shared_counter)
         )
+
+    def start_process(self):
+        """Start process continously reading the queue and writing to the InfluxDB."""
         self.push_process.start()
 
     @property
@@ -120,6 +146,7 @@ class Pusher:
         return self._shared_counter.value
 
     def _push(self, queue, shared_counter):
+        shared_counter.value += 1  # change from -1 to 0
         while True:
             data = queue.get()
             self.influxdb_client.write_points(data)
@@ -148,7 +175,7 @@ class Logger(rpyc.Service):
         super(Logger, self).__init__()
         self.queue = Queue()
         self.start_pusher_process(host, port, user, password, database)
-        self.exposed_pullers = []
+        self.exposed_pullers = {}
 
     def start_pusher_process(self, host, port, user, password, database):
         """
@@ -170,15 +197,48 @@ class Logger(rpyc.Service):
         self.pusher = Pusher(self.queue, host, port, user, password, database)
         self.pusher.start_process()
 
-    def exposed_start_puller_process(self, host, port, measurement, interval):
-        """Start a Puller process."""
+    def exposed_add_puller(self, host, port, measurement, interval):
+        """
+        Add and start a Puller process.
+
+        Parameters
+        ----------
+        host : str
+            Hostname where the DataService can be accessed (default 'localhost').
+        port : int
+            Port at which the DataService can be accessed (default 18861).
+        measurement : str
+            Name of the measurement. This name will be used as the measurement when writing
+            to an InfluxDB (default "test").
+        interval : float
+            Logging interval in seconds.
+        """
+        netloc = f"{host}:{port}"
+        if netloc in self.exposed_pullers.keys():
+            raise Exception(f"{netloc} is already being pulled.")
         try:
             puller = Puller(self.queue, host, port, measurement, interval)
             puller.start_process()
         except ConnectionRefusedError as error:
-            print("jfioajfeajfojiaojfiaojfioajifoajifoa")
+            # FIXME: this doesn't do anything yet, child processes don't communicate errors to the
+            # parent
+            raise error
         else:
-            self.exposed_pullers.append(puller)
+            self.exposed_pullers[netloc] = puller
+
+    def exposed_remove_puller(self, netloc):
+        """
+        Stop and remove a puller from the logger.
+
+        netloc : str
+            Network location, e.g. localhost:18861
+        """
+        try:
+            exitcode = self.exposed_pullers[netloc].stop_process()
+            print(f"Puller process for {netloc} exited with code {exitcode}.")
+            del self.exposed_pullers[netloc]
+        except KeyError as error:
+            raise KeyError(f"No Puller pulling from {netloc}") from error
 
     def exposed_get_display_text(self):
         """Print status of connected DataServices and the InfluxDB, continously."""
@@ -197,7 +257,7 @@ class Logger(rpyc.Service):
         display_text += (
             "-----------   |   ---------------   |   ------   |   -------   \n"
         )
-        for puller in self.exposed_pullers:
+        for _, puller in self.exposed_pullers.items():
             display_text += "{:11.11}   |   {:15.15}   |   {:6d}   |   {:7d}\n".format(
                 puller.measurement, puller.host, puller.port, puller.counter
             )
@@ -232,6 +292,30 @@ def start_logger(logger_port, host, port, user, password, database):
     print("Started logger on port {}.".format(logger_port))
 
 
+def _get_logger(port):
+    """
+    Get connection to a Logger object exposed on a port.
+
+    Parameters
+    ----------
+    port : int
+        Port the Logger is exposed on
+
+    Returns
+    -------
+    logger : rpyc.core.protocol.Connection
+        Connection to the Logger.
+    """
+    try:
+        logger = rpyc.connect("localhost", port)
+    except ConnectionRefusedError as error:
+        raise ConnectionRefusedError(
+            "Connection to Logger refused."
+            "Make sure there a Logger is running on port {}.".format(port),
+        ) from error
+    return logger
+
+
 def add_puller_to_logger(logger_port, netloc, measurement, interval):
     """
     Add a Puller to a Logger.
@@ -249,16 +333,25 @@ def add_puller_to_logger(logger_port, netloc, measurement, interval):
     interval : int
         Logging interval in seconds.
     """
-    try:
-        logger = rpyc.connect("localhost", logger_port)
-    except ConnectionRefusedError as error:
-        raise ConnectionRefusedError(
-            "Connection to Logger refused."
-            "Make sure there a Logger is running on port {}.".format(logger_port),
-        ) from error
-    else:
-        host, port = _parse_netloc(netloc)
-        logger.root.exposed_start_puller_process(host, port, measurement, interval)
+    logger = _get_logger(logger_port)
+    host, port = _parse_netloc(netloc)
+    logger.root.exposed_add_puller(host, port, measurement, interval)
+
+
+def remove_puller_from_logger(logger_port, netloc):
+    """
+    Remove a Puller from a Logger.
+
+    Parameters
+    ----------
+    logger_port : int
+        The port the Logger's methods are exposed on.
+    netloc : str
+        Network location of the LabDataService that is being pulled. Has the
+        form "hostname:port".
+    """
+    logger = _get_logger(logger_port)
+    logger.root.exposed_remove_puller(netloc)
 
 
 def show_logger_status(logger_port):
@@ -274,7 +367,7 @@ def show_logger_status(logger_port):
     while True:
         display_text = logger.root.exposed_get_display_text()
         print(display_text)
-        sleep(0.5)
+        sleep(LOGGER_SHOW_INTERVAL)
 
 
 def _parse_netloc(netloc):

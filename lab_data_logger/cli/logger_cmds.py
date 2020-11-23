@@ -3,7 +3,12 @@
 import click
 
 from multiprocessing import Process
-from ..logger import start_logger, add_puller_to_logger, show_logger_status
+from ..logger import (
+    start_logger,
+    add_puller_to_logger,
+    remove_puller_from_logger,
+    show_logger_status,
+)
 import rpyc
 
 from time import sleep
@@ -48,6 +53,16 @@ def add(logger_port, netloc, measurement, interval):
     The data will be written to the MEASUREMENT.
     """
     add_puller_to_logger(logger_port, netloc, measurement, interval)
+
+
+@logger.command()
+@click.argument("netloc")
+@click.pass_obj
+def remove(logger_port, netloc):
+    """
+    Remove DataService located at NETLOC from the logger.
+    """
+    remove_puller_from_logger(logger_port, netloc)
 
 
 @logger.command()
