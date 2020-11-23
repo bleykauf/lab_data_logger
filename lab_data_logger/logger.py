@@ -34,14 +34,14 @@ class Puller:
         self.port = port
         self.measurement = measurement
         self.interval = interval
+        # shared value for communicating the processes status
+        self._shared_counter = Value("i", 0)
 
     def start_process(self):
         """Start process continously pulling data and writing it to the queue."""
-        # pipe for communicating the processes status
-        self.pipe_from_child, pipe_to_parent = Pipe(duplex=False)
 
         self.pull_process = Process(
-            target=self._pull, args=(self.queue, pipe_to_parent)
+            target=self._pull, args=(self.queue, self._shared_counter)
         )
         self.pull_process.start()
 
@@ -50,16 +50,10 @@ class Puller:
         """
         Number of times the process has pulled data from the DataService.
         """  # noqa D401
-        if not hasattr(self, "_counter"):
-            self._counter = -1
-        # empty the pipe and get last status
-        while self.pipe_from_child.poll():
-            self._counter = self.pipe_from_child.recv()
-        return self._counter
+        return self._shared_counter.value
 
-    def _pull(self, queue, pipe_to_parent):
+    def _pull(self, queue, shared_counter):
         # only used inside a multiprocessing.Process
-        counter = 0
         service = rpyc.connect(self.host, self.port)
         print(
             "Connected to {} on port {}".format(
@@ -70,8 +64,7 @@ class Puller:
             data = service.root.exposed_get_data()
             data["measurement"] = self.measurement
             queue.put([data])
-            counter += 1
-            pipe_to_parent.send(counter)
+            shared_counter.value += 1
             sleep(self.interval)
 
 
@@ -102,13 +95,14 @@ class Pusher:
         self.database = database
         self.influxdb_client = InfluxDBClient(host, port, user, password, database)
 
+        # shared value for communicating the processes status
+        self._shared_counter = Value("i", 0)
+
     def start_process(self):
         """Start process continously reading the queue and writing to the InfluxDB."""
-        # pipe for communicating the processes status
-        self.pipe_from_child, pipe_to_parent = Pipe(duplex=False)
 
         self.push_process = Process(
-            target=self._push, args=(self.queue, pipe_to_parent)
+            target=self._push, args=(self.queue, self._shared_counter)
         )
         self.push_process.start()
 
@@ -117,20 +111,13 @@ class Pusher:
         """
         Number of times the process has pushed data to the InfluxDB.
         """  # noqa D401
-        if not hasattr(self, "_counter"):
-            self._counter = -1
-        # empty the pipe and get last status
-        while self.pipe_from_child.poll():
-            self._counter = self.pipe_from_child.recv()
-        return self._counter
+        return self._shared_counter.value
 
-    def _push(self, queue, pipe_to_parent):
-        counter = 0
+    def _push(self, queue, shared_counter):
         while True:
             data = queue.get()
             self.influxdb_client.write_points(data)
-            counter += 1
-            pipe_to_parent.send(counter)
+            shared_counter.value += 1
 
 
 class Logger(rpyc.Service):
@@ -194,10 +181,14 @@ class Logger(rpyc.Service):
         )
 
         display_text += "Pulling from these services:\n"
-        display_text += "MEASUREMENT   |     HOSTNAME     |    PORT    |   COUNTER   \n"
-        display_text += "-----------   |   ------------   |   ------   |   -------   \n"
+        display_text += (
+            "MEASUREMENT   |     HOSTNAME        |    PORT    |   COUNTER   \n"
+        )
+        display_text += (
+            "-----------   |   ---------------   |   ------   |   -------   \n"
+        )
         for puller in self.exposed_pullers:
-            display_text += "{:11.11}   |   {:12.12}   |   {:6d}   |   {:7d}\n".format(
+            display_text += "{:11.11}   |   {:15.15}   |   {:6d}   |   {:7d}\n".format(
                 puller.measurement, puller.host, puller.port, puller.counter
             )
 
