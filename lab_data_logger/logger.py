@@ -1,11 +1,10 @@
 """Classes and functions related to the Logger part of LDL."""
 
-from multiprocess import Pipe, Process, Queue
 from time import sleep
 
 import rpyc
 from influxdb import InfluxDBClient
-
+from multiprocess import Process, Queue, Value  # pylint: disable=no-name-in-module
 
 rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
 

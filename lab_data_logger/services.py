@@ -8,7 +8,7 @@ import importlib
 import os
 import random
 import sys
-from multiprocess import Process
+from multiprocess import Process  # pylint: disable=no-name-in-module
 
 import rpyc
 
