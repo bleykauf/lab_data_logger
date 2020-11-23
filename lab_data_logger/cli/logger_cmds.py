@@ -43,7 +43,7 @@ def start(logger_port, host, port, user, password, database):
 @logger.command()
 @click.argument("netloc")
 @click.argument("measurement")
-@click.option("--interval", default=1, help="Logging interval in seconds.")
+@click.option("--interval", default=1.0, help="Logging interval in seconds.")
 @click.pass_obj
 def add(logger_port, netloc, measurement, interval):
     """
