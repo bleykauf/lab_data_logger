@@ -5,12 +5,15 @@ These are the objects that provide the data that we want to log.
 """
 
 import importlib
+import logging
 import os
 import random
 import sys
-from multiprocess import Process  # pylint: disable=no-name-in-module
 
 import rpyc
+from multiprocess import Process  # pylint: disable=no-name-in-module
+
+debug_logger = logging.getLogger("lab_data_logger.service")
 
 # multiprocessing needs pickling
 rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
@@ -82,4 +85,4 @@ def start_service(service, port):
 
     proc = Process(target=threaded_server.start)
     proc.start()
-    print("Started {} on port {}.".format(service, port))
+    debug_logger.info("Started {} on port {}.".format(service, port))

@@ -2,16 +2,12 @@
 
 import click
 
-from multiprocessing import Process
 from ..logger import (
     start_logger,
     add_puller_to_logger,
     remove_puller_from_logger,
     show_logger_status,
 )
-import rpyc
-
-from time import sleep
 
 
 @click.group(chain=True)
@@ -59,9 +55,7 @@ def add(logger_port, netloc, measurement, interval):
 @click.argument("netloc")
 @click.pass_obj
 def remove(logger_port, netloc):
-    """
-    Remove DataService located at NETLOC from the logger.
-    """
+    """Remove DataService located at NETLOC from the logger."""
     remove_puller_from_logger(logger_port, netloc)
 
 
