@@ -11,8 +11,9 @@ class ThorlabsPM100DService(LabDataService):
     Read the power from a Thorlabs Optical Power Meter PM100D.
     """
 
-    def __init__(self):
-        super(ThorlabsPM100DService, self).__init__()
+    config = {"address": "USB0::0x1313::0x8078::P0020110::INSTR"}
+
+    def prepare_data_acquisition(self):
 
         os.system("cls" if os.name == "nt" else "clear")
 
@@ -21,15 +22,14 @@ class ThorlabsPM100DService(LabDataService):
             inst = usbtmc.USBTMC()
         elif the_os == "Windows":
             rm = visa.ResourceManager()
-            POWERMETER_ADDRESS = "USB0::0x1313::0x8078::P0020110::INSTR"
-            inst = rm.open_resource(POWERMETER_ADDRESS, timeout=1000)
+            inst = rm.open_resource(self.config["address"], timeout=1000)
 
         self.instrument = ThorlabsPM100(inst=inst)
         self.instrument.sense.power.dc.range.auto = "ON"
 
-    def exposed_get_data(self):
+    def get_data_fields(self):
         power = self.instrument.read
 
-        data = {"fields": {"power": power}}
+        data = {"power": power}
 
         return data

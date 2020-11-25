@@ -1,6 +1,6 @@
 """The Lab Data Logger LDL."""
 
-from ._version import get_versions  # noqa
+from ._version import get_versions
 
 from . import logger  # noqa F401
 from . import services  # noqa F401

@@ -20,9 +20,7 @@ class PiPyADCService(LabDataService):
     to a pressure value.
     """
 
-    def __init__(self):
-        super(PiPyADCService, self).__init__()
-
+    def prepare_data_acquisition(self):
         POTI, LDR, EXT2, EXT3 = (
             POS_AIN0 | NEG_AINCOM,
             POS_AIN1 | NEG_AINCOM,
@@ -34,10 +32,15 @@ class PiPyADCService(LabDataService):
         self.ads = ADS1256(pipyadc.ADS1256_default_config)
         self.ads.cal_self()
 
-    def exposed_get_data(self):
+    def get_data_fields(self, **kwargs):
         raw_channels = self.ads.read_sequence(self.CH_SEQUENCE)
         voltages = [i * self.ads.v_per_digit for i in raw_channels]
 
-        data = {"fields": {"pressure_sensor": 10 ** (5 / 7 * voltages[3] - 10)}}
+        data = {
+            "poti": voltages[0],
+            "ldr": voltages[1],
+            "ext2": voltages[2],
+            "pressure_sensor": 10 ** (5 / 7 * voltages[3] - 10),
+        }
 
         return data

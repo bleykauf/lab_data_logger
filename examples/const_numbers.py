@@ -1,19 +1,26 @@
 """A pretty minimal example of a custom LabDataService implemenation."""
 
+import random
+
 from lab_data_logger.services import LabDataService
 
 
 class ConstNumberService(LabDataService):
     """Service for producing two constant numbers."""
 
-    def __init__(self):
-        super(ConstNumberService, self).__init__()
+    # the default configuration, can be overwritten, see __init__ of LabDataService
+    config = {"a_number": 2, "another_number": 3}
 
-    def exposed_get_data(self):
-        """Get two of the best numbers there are."""
-        a_number = 3
-        another_number = 2
+    def prepare_data_acquisition(self):
+        self.random_number = random.random()
+
+    def get_data_fields(self, **kwargs):
+        """
+        Get a random number and two  configurable numbers.
+        """
         data = {
-            "fields": {"a_number": a_number, "another_number": another_number},
+            "fixed_random_number": self.random_number,
+            "a_number": self.config["a_number"],
+            "another_number": self.config["another_number"],
         }
         return data
