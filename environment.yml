@@ -15,3 +15,4 @@ dependencies:
   - rpyc
   - influxdb
   - multiprocess
+  - click_log
