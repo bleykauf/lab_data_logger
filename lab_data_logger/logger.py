@@ -30,23 +30,25 @@ class Puller:
     port : int
         Port at which the DataService can be accessed (default 18861).
     measurement : str
-        Name of the measurement. This name will be used as the measurement when writing
-        to an InfluxDB (default "test").
+        Name of the measurement. This name will be used as the measurement when
+        writing to an InfluxDB (default "test").
     interval : float
         Logging interval in seconds.
     """
 
-    def __init__(self, queue, host, port, measurement, interval):
+    def __init__(self, queue, host, port, measurement, interval, fields=None):
         self.queue = queue
         self.host = host
         self.port = port
         self.measurement = measurement
         self.interval = interval
+        self.fields = fields
         # shared value for communicating the processes status
         self._shared_counter = Value("i", -1)
         self.stop_event = Event()
         self.pull_process = Process(
-            target=self._pull, args=(self.queue, self._shared_counter, self.stop_event)
+            target=self._pull,
+            args=(self.queue, self._shared_counter, self.stop_event, self.fields),
         )
 
     @property
@@ -56,7 +58,7 @@ class Puller:
         """  # noqa D401
         return self._shared_counter.value
 
-    def _pull(self, queue, shared_counter, stop_event):
+    def _pull(self, queue, shared_counter, stop_event, fields=None):
         # the worker of the pulling process
         try:
             service = rpyc.connect(self.host, self.port)
@@ -75,7 +77,7 @@ class Puller:
             # worker loop
             while not stop_event.is_set():
                 try:
-                    data = service.root.exposed_get_data()
+                    data = service.root.exposed_get_data(fields=fields)
                     data["measurement"] = self.measurement
                     queue.put([data])
                     shared_counter.value += 1
@@ -141,7 +143,8 @@ class Pusher:
 
 class Logger(rpyc.Service):
     """
-    Service comprised of a Pusher and a number of Pullers and methods for managing them.
+    Service comprised of a Pusher and a number of Pullers and methods for
+    managing them.
 
     Parameters
     ----------
@@ -167,7 +170,7 @@ class Logger(rpyc.Service):
         debug_logger.debug("Pusher process started.")
         self.exposed_pullers = {}
 
-    def exposed_add_puller(self, host, port, measurement, interval):
+    def exposed_add_puller(self, host, port, measurement, interval, fields=None):
         """
         Add and start a Puller process.
 
@@ -178,8 +181,8 @@ class Logger(rpyc.Service):
         port : int
             Port at which the DataService can be accessed (default 18861).
         measurement : str
-            Name of the measurement. This name will be used as the measurement when w
-            riting to an InfluxDB.
+            Name of the measurement. This name will be used as the measurement
+            when writing to an InfluxDB.
         interval : float
             Logging interval in seconds.
         """
@@ -187,7 +190,9 @@ class Logger(rpyc.Service):
         if netloc in self.exposed_pullers.keys():
             debug_logger.error(f"{netloc} is already being pulled.")
         else:
-            puller = Puller(self.queue, host, port, measurement, interval)
+            puller = Puller(
+                self.queue, host, port, measurement, interval, fields=fields
+            )
             debug_logger.info(f"Starting pull process for {netloc}.")
             puller.pull_process.start()
             self.exposed_pullers[netloc] = puller
@@ -197,8 +202,8 @@ class Logger(rpyc.Service):
         Stop and remove a puller from the logger.
 
         netloc : str or int
-            Network location, e.g. localhost:18861. If an int is passed, localhost is
-            assumed.
+            Network location, e.g. localhost:18861. If an int is passed,
+            localhost is assumed.
         """
         host, port = _parse_netloc(netloc)
         netloc = f"{host}:{port}"
@@ -209,7 +214,7 @@ class Logger(rpyc.Service):
             puller.pull_process.join(JOIN_TIMEOUT)
             if puller.pull_process.is_alive():
                 # if not successful, terminate
-                self.pull_process.terminate()
+                puller.pull_process.terminate()
             debug_logger.info(
                 "Puller process for {} exited with code {}.".format(
                     netloc, puller.pull_process.exitcode
@@ -220,7 +225,9 @@ class Logger(rpyc.Service):
             debug_logger.error(f"No Puller pulling from {netloc}")
 
     def exposed_get_display_text(self):
-        """Print status of connected DataServices and the InfluxDB, continously."""
+        """
+        Print status of connected DataServices and the InfluxDB, continously.
+        """
         display_text = "\nLAB DATA LOGGER\n"
         display_text += "Logging to {} on {}:{} (processed entry {}).\n".format(
             self.pusher.database,
@@ -295,7 +302,7 @@ def _get_logger(port):
     return logger
 
 
-def add_puller_to_logger(logger_port, netloc, measurement, interval):
+def add_puller_to_logger(logger_port, netloc, measurement, interval, fields=None):
     """
     Add a Puller to a Logger.
 
@@ -311,10 +318,14 @@ def add_puller_to_logger(logger_port, netloc, measurement, interval):
         Name of the measurement, i.e. the measurement field of InfluxDB.
     interval : int
         Logging interval in seconds.
+    fields : list
+        Optional list of fields that should be returned. If more fields are
+        provided by the service they will be filtered.
     """
     logger = _get_logger(logger_port)
     host, port = _parse_netloc(netloc)
-    logger.root.exposed_add_puller(host, port, measurement, interval)
+    print(fields)
+    logger.root.exposed_add_puller(host, port, measurement, interval, fields=fields)
 
 
 def remove_puller_from_logger(logger_port, netloc):

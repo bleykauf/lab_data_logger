@@ -3,7 +3,6 @@ LabDataService template class and one example implemenation.
 
 These are the objects that provide the data that we want to log.
 """
-
 import importlib
 import logging
 import os
@@ -73,7 +72,6 @@ class LabDataService(rpyc.Service):
 
         # pylint: disable=assignment-from-no-return
         data["fields"] = self.get_data_fields()
-
         self.filter_fields(data, fields=fields)
         return data
 

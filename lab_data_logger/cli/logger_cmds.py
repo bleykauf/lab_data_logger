@@ -1,5 +1,7 @@
 """CLI commands for the logger."""
 
+import ast
+
 import click
 
 from ..logger import (
@@ -48,7 +50,8 @@ def add(logger_port, netloc, measurement, interval):
     NETLOC is a network location hostname:port or only the port (localhost is assumed).
     The data will be written to the MEASUREMENT.
     """
-    add_puller_to_logger(logger_port, netloc, measurement, interval)
+    # FIXME: fields is not yer configurable form the command line
+    add_puller_to_logger(logger_port, netloc, measurement, interval, fields=None)
 
 
 @logger.command()
