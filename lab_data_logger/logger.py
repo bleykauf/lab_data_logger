@@ -324,7 +324,6 @@ def add_puller_to_logger(logger_port, netloc, measurement, interval, fields=None
     """
     logger = _get_logger(logger_port)
     host, port = _parse_netloc(netloc)
-    print(fields)
     logger.root.exposed_add_puller(host, port, measurement, interval, fields=fields)
 
 
