@@ -4,7 +4,8 @@ import logging
 from time import sleep
 
 import rpyc
-from influxdb import InfluxDBClient
+import influxdb
+
 
 # pylint: disable=no-name-in-module
 from multiprocess import Event, Process, Queue, Value
@@ -117,7 +118,9 @@ class Pusher:
         self.host = host
         self.port = port
         self.database = database
-        self.influxdb_client = InfluxDBClient(host, port, user, password, database)
+        self.influxdb_client = influxdb.InfluxDBClient(
+            host, port, user, password, database
+        )
 
         # shared value for communicating the processes status
         self._shared_counter = Value("i", -1)
@@ -137,7 +140,12 @@ class Pusher:
         shared_counter.value += 1  # change from -1 to 0
         while True:
             data = queue.get()
-            self.influxdb_client.write_points(data)
+            try:
+                self.influxdb_client.write_points(data)
+            except influxdb.exceptions.InfluxDBClientError:
+                # FIXME: Change behaviour depending on which error is thrown.
+                debug_logger.exception(f"Could not write data {data} to the database.")
+
             shared_counter.value += 1
 
 
