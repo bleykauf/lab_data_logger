@@ -4,7 +4,7 @@ import json
 
 import click
 
-from ..services import start_service
+from ..services import start_service, pull_from_service
 
 
 @click.group(chain=True)
@@ -31,3 +31,14 @@ def start(service, port, config):
         config = {}
 
     start_service(service, port, config)
+
+
+@services.command()
+@click.argument("netloc")
+def pull(netloc):
+    """
+    Pull from a service located at NETLOC.
+
+    NETLOC is a network location hostname:port or only the port (localhost is assumed).
+    """
+    print(pull_from_service(netloc))

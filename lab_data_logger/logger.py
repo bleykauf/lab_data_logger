@@ -3,12 +3,13 @@
 import logging
 from time import sleep
 
-import rpyc
 import influxdb
-
+import rpyc
 
 # pylint: disable=no-name-in-module
 from multiprocess import Event, Process, Queue, Value
+
+from .utils import parse_netloc
 
 debug_logger = logging.getLogger("lab_data_logger.logger")
 
@@ -213,7 +214,7 @@ class Logger(rpyc.Service):
             Network location, e.g. localhost:18861. If an int is passed,
             localhost is assumed.
         """
-        host, port = _parse_netloc(netloc)
+        host, port = parse_netloc(netloc)
         netloc = f"{host}:{port}"
         try:
             puller = self.exposed_pullers[netloc]
@@ -331,7 +332,7 @@ def add_puller_to_logger(logger_port, netloc, measurement, interval, fields=None
         provided by the service they will be filtered.
     """
     logger = _get_logger(logger_port)
-    host, port = _parse_netloc(netloc)
+    host, port = parse_netloc(netloc)
     logger.root.exposed_add_puller(host, port, measurement, interval, fields=fields)
 
 
@@ -365,19 +366,3 @@ def show_logger_status(logger_port):
         display_text = logger.root.exposed_get_display_text()
         print(display_text)
         sleep(LOGGER_SHOW_INTERVAL)
-
-
-def _parse_netloc(netloc):
-    # Split network location pair hostname:port into
-    split_netloc = netloc.split(":")
-    if len(split_netloc) == 2:
-        # host:port pair
-        host = split_netloc[0]
-        port = int(split_netloc[1])
-    elif len(split_netloc) == 1:
-        # only port
-        host = "localhost"
-        port = int(split_netloc[0])
-    else:
-        raise ValueError("'{}' is not a valid location".format(netloc))
-    return host, port

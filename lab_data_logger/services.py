@@ -8,11 +8,12 @@ import logging
 import os
 import random
 import sys
-
 from datetime import datetime
 
 import rpyc
 from multiprocess import Process  # pylint: disable=no-name-in-module
+
+from .utils import parse_netloc
 
 debug_logger = logging.getLogger("lab_data_logger.service")
 
@@ -21,16 +22,17 @@ rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
 
 
 class LabDataService(rpyc.Service):
+    """
+    Base class for other data servies.
+
+    Parameters
+    ----------
+    config : dict
+        Optional configuration data. Is stored as an attribute for use in
+        `get_data_fields`.
+    """
+
     def __init__(self, config={}):
-        """
-        Base class for other data servies.
-
-        Parameters
-        ----------
-        config : dict
-            Optional configuration data. Is stored as an attribute for use in `get_data_fields`.
-        """
-
         super(LabDataService, self).__init__()
         self.config.update(config)  # overwrite default values
         self.prepare_data_acquisition()
@@ -45,13 +47,14 @@ class LabDataService(rpyc.Service):
         Parameters
         ----------
         fields : list
-            A list of the data fields that should be returned. All other fields will be removed.
-            This list is also passed to the `get_data_fields` method where it can be used to already
-            filter during data aquisition. Defaults to None, i.e. all fields provided are returned.
+            A list of the data fields that should be returned. All other fields will be
+            removed. This list is also passed to the `get_data_fields` method where it
+            can be used to already filter during data aquisition. Defaults to None, i.e.
+            all fields provided are returned.
         add_timestamp : bool
-            Determines whether a timestamp should be added at the time of data aquisition (the
-            default). If no timestamp is present, influxdb will automatically create one when the
-            data is written to the database.
+            Determines whether a timestamp should be added at the time of data
+            aquisition (the default). If no timestamp is present, influxdb will
+            automatically create one when the data is written to the database.
 
         Returns
         -------
@@ -63,7 +66,8 @@ class LabDataService(rpyc.Service):
         Returns
         -------
         data : dict
-            The only field is "random_numbers", containing a random number between 0.0 and 1.0.
+            The only field is "random_numbers", containing a random number between 0.0
+            and 1.0.
         """
 
         data = {}
@@ -76,9 +80,7 @@ class LabDataService(rpyc.Service):
         return data
 
     def prepare_data_acquisition(self):
-        """
-        Do stuff that has to be done before the data aquisition can be started.
-        """
+        """Do stuff that has to be done before the data aquisition can be started."""
         pass
 
     def get_data_fields(self, fields=None):
@@ -154,3 +156,24 @@ def start_service(service, port, config={}):
     proc = Process(target=threaded_server.start)
     proc.start()
     debug_logger.info("Started {} on port {}.".format(service, port))
+
+
+def pull_from_service(netloc):
+    """
+    Pull data from a LabDataService.
+
+    Parameters
+    ----------
+    netloc : str or int
+        Network location, e.g. localhost:18861. If an int is passed, localhost is
+        assumed.
+
+    Returns
+    -------
+    data : dict
+        The data pulled from the service.
+    """
+    host, port = parse_netloc(netloc)
+    service = rpyc.connect(host, port)
+    data = service.root.exposed_get_data()
+    return data

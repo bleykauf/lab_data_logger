@@ -1,7 +1,5 @@
 """CLI commands for the logger."""
 
-import ast
-
 import click
 
 from ..logger import (
