@@ -16,8 +16,13 @@ def services():
 @services.command()
 @click.argument("service")
 @click.argument("port")
-@click.option("--config", type=click.Path(exists=True))
-def start(service, port, config):
+@click.option(
+    "--config", type=click.Path(exists=True), help="Path to configuration file"
+)
+@click.option(
+    "--no_process", is_flag=True, help="Don't start the service in a process."
+)
+def start(service, port, config, no_process):
     """
     Start SERVICE on PORT.
 
@@ -30,7 +35,7 @@ def start(service, port, config):
     else:
         config = {}
 
-    start_service(service, port, config)
+    start_service(service, port, config, no_process)
 
 
 @services.command()
