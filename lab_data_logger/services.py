@@ -3,6 +3,7 @@ LabDataService template class and one example implemenation.
 
 These are the objects that provide the data that we want to log.
 """
+
 import importlib
 import logging
 import os
@@ -23,7 +24,7 @@ rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
 
 class LabDataService(rpyc.Service):
     """
-    Base class for other data servies.
+    Base class for other data services.
 
     Parameters
     ----------
