@@ -1,3 +1,4 @@
+# pylint: disable=import-error
 from lab_data_logger.services import LabDataService
 
 import pipyadc.ADS1256_default_config

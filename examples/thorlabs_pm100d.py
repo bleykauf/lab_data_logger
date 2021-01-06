@@ -1,3 +1,5 @@
+# pylint: disable=import-error
+
 from lab_data_logger.services import LabDataService
 
 from ThorlabsPM100 import ThorlabsPM100, usbtmc
