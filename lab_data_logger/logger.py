@@ -170,7 +170,7 @@ class Logger(rpyc.Service):
     """
 
     def __init__(
-        self, host="localhost", port=8083, user=None, password=None, database=None
+        self, host="localhost", port=8086, user=None, password=None, database=None
     ):
         super(Logger, self).__init__()
         self.queue = Queue()
