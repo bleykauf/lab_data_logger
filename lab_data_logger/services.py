@@ -43,7 +43,7 @@ class ServiceManager(rpyc.Service):
         proc.service_name = str(service)  # add service name as attribute for display
         proc.start()
         if proc.is_alive():
-            debug_logger.info(f"Started {str(service)} on port {port}!")
+            debug_logger.info(f"Started {str(service)} on port {port}.")
         else:
             debug_logger.info(f"Failed to start {str(service)} on port {port}.")
         self.exposed_services[port] = proc
@@ -98,7 +98,6 @@ def _get_service_manager(manager_port):
 
 def add_service_to_service_manager(manager_port, service, port, config={}):
     service_manager = _get_service_manager(manager_port)
-    service = import_service(service)
     service_manager.root.exposed_add_service(service, port, config)
 
 
