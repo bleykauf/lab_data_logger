@@ -4,18 +4,16 @@ LabDataService template class and one example implemenation.
 These are the objects that provide the data that we want to log.
 """
 
-import importlib
+
 import logging
-import os
 import random
-import sys
 from datetime import datetime
 from time import sleep
 
 import rpyc
 from multiprocessing import Process  # pylint: disable=no-name-in-module
 
-from .utils import parse_netloc
+from .utils import parse_netloc, import_service
 
 debug_logger = logging.getLogger("lab_data_logger.service")
 
@@ -35,7 +33,7 @@ class ServiceManager(rpyc.Service):
         if port in self.exposed_services.keys():
             debug_logger.error(f"Port {port} is already being used.")
         else:
-            service = _import_service(service)
+            service = import_service(service)
 
         threaded_server = rpyc.utils.server.ThreadedServer(
             service(config), port=int(port)
@@ -92,6 +90,7 @@ def _get_service_manager(manager_port):
 
 def add_service_to_service_manager(manager_port, service, port, config={}):
     service_manager = _get_service_manager(manager_port)
+    service = import_service(service)
     service_manager.root.exposed_add_service(service, port, config)
 
 
@@ -221,16 +220,6 @@ class RandomNumberService(LabDataService):
         return {"random_number": random.random()}
 
 
-def _import_service(service):
-    service_name = service.split(".")[-1]
-    module_name = service[: -len(service_name) - 1]
-    # add working directory to PATH, to allow to importing modules from there
-    sys.path.append(os.getcwd())
-    module = importlib.import_module(module_name)
-    service = getattr(module, service_name)
-    return service
-
-
 def start_service(service, port, config={}):
     """
     Start a LabDataService.
@@ -247,7 +236,7 @@ def start_service(service, port, config={}):
         If set to True, the Service will not be started inside a process. This
         can be useful to avoid pickling errors in certain situations.
     """
-    service = _import_service(service)
+    service = import_service(service)
     threaded_server = rpyc.utils.server.ThreadedServer(service(config), port=int(port))
     debug_logger.info(f"Starting {service} on port {port}.")
     threaded_server.start()

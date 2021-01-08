@@ -1,6 +1,5 @@
 """The command-line interface for ldl."""
 
-import json
 import logging
 
 import click
@@ -8,6 +7,7 @@ import click_log
 import rpyc
 
 from . import logger, services
+from .utils import parse_config
 
 debug_logger = logging.getLogger("lab_data_logger")
 debug_logger.setLevel(logging.DEBUG)
@@ -112,7 +112,7 @@ def services_start(service, port, config):
     SERVICE is a dot-separated path to the DataService class that should be started,
     e.g. ldl.services.RandomNumberService).
     """
-    config = _parse_config(config)
+    config = parse_config(config)
     services.start_service(service, port, config)
 
 
@@ -155,7 +155,7 @@ def manager_start(manager_port):
 @click.pass_obj  # pass the manager_port
 def manager_add(manager_port, service, port, config):
     """Start SERVICE on PORT and add it to the ServiceManager."""
-    config = _parse_config(config)
+    config = parse_config(config)
     services.add_service_to_service_manager(manager_port, service, port, config)
 
 
@@ -165,16 +165,6 @@ def manager_add(manager_port, service, port, config):
 def manager_remove(manager_port, port):
     """Remove the serivce running on PORT from the ServiceManager."""
     services.remove_service_from_service_manager(manager_port, port)
-
-
-def _parse_config(config):
-    # load a config file as a dict or return an empty dict
-    if config:
-        with open(config) as config_file:
-            config = json.load(config_file)
-    else:
-        config = {}
-    return config
 
 
 if __name__ == "__main__":
