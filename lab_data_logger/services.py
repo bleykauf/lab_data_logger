@@ -10,9 +10,10 @@ import os
 import random
 import sys
 from datetime import datetime
+from time import sleep
 
 import rpyc
-from multiprocess import Process  # pylint: disable=no-name-in-module
+from multiprocessing import Process  # pylint: disable=no-name-in-module
 
 from .utils import parse_netloc
 
@@ -20,6 +21,91 @@ debug_logger = logging.getLogger("lab_data_logger.service")
 
 # multiprocessing needs pickling
 rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
+
+SHOW_INTERVAL = 0.5
+JOIN_TIMEOUT = 1
+
+
+class ServiceManager(rpyc.Service):
+    def __init__(self):
+        super(ServiceManager, self).__init__()
+        self.exposed_services = {}
+
+    def exposed_add_service(self, service, port, config={}):
+        if port in self.exposed_services.keys():
+            debug_logger.error(f"Port {port} is already being used.")
+        else:
+            service = _import_service(service)
+
+        threaded_server = rpyc.utils.server.ThreadedServer(
+            service(config), port=int(port)
+        )
+        proc = Process(target=threaded_server.start)
+        proc.service_name = str(service)  # add service name as attribute for display
+        proc.start()
+        debug_logger.info(f"Started {service} on port {port}.")
+        self.exposed_services[port] = proc
+
+    def exposed_remove_service(self, port):
+        try:
+            proc = self.exposed_services[port]
+            proc.join(JOIN_TIMEOUT)
+            if proc.is_alive():
+                proc.terminate()
+            debug_logger.info(
+                f"Service on port {port} exited with code {proc.exitcode}"
+            )
+        except KeyError:
+            debug_logger.error(f"No service running on port {port}")
+
+    def exposed_get_display_text(self):
+        display_text = "\nLAB DATA LOGGER\n"
+        display_text = "\nSERVICE MANAGER\n"
+
+        display_text += "    PORT    |     SERVICE     \n"
+        display_text += "   ------   |   -----------   |\n"
+        for port, proc in self.exposed_services.items():
+            display_text += "{:6d}   |   {:11.11}   |\n".format(port, proc.service_name)
+
+
+def start_service_manager(manager_port):
+    service_manager = ServiceManager()
+    threaded_server = rpyc.utils.server.ThreadedServer(
+        service_manager, port=manager_port
+    )
+
+    proc = Process(target=threaded_server.start)
+    proc.start()
+    debug_logger.info(f"Started service manager on port {manager_port}.")
+
+
+def _get_service_manager(manager_port):
+    try:
+        service_manager = rpyc.connect("localhost", manager_port)
+    except ConnectionRefusedError as error:
+        raise ConnectionRefusedError(
+            "Connection to ServiceManager refused."
+            f"Make sure there a ServiceManager is running on port {manager_port}.",
+        ) from error
+    return service_manager
+
+
+def add_service_to_service_manager(manager_port, service, port, config={}):
+    service_manager = _get_service_manager(manager_port)
+    service_manager.root.exposed_add_service(service, port, config)
+
+
+def remove_service_from_service_manager(manager_port, port):
+    service_manager = _get_service_manager(manager_port)
+    service_manager.root.exposed_remove_service(port)
+
+
+def show_service_manager_status(manager_port):
+    service_manager = rpyc.connect("localhost", manager_port)
+    while True:
+        display_text = service_manager.root.exposed_get_display_text()
+        print(display_text)
+        sleep(SHOW_INTERVAL)
 
 
 class LabDataService(rpyc.Service):
@@ -135,9 +221,19 @@ class RandomNumberService(LabDataService):
         return {"random_number": random.random()}
 
 
-def start_service(service, port, config={}, no_process=False):
+def _import_service(service):
+    service_name = service.split(".")[-1]
+    module_name = service[: -len(service_name) - 1]
+    # add working directory to PATH, to allow to importing modules from there
+    sys.path.append(os.getcwd())
+    module = importlib.import_module(module_name)
+    service = getattr(module, service_name)
+    return service
+
+
+def start_service(service, port, config={}):
     """
-    Start a LabDataService in a Process.
+    Start a LabDataService.
 
     Parameter
     ---------
@@ -151,22 +247,10 @@ def start_service(service, port, config={}, no_process=False):
         If set to True, the Service will not be started inside a process. This
         can be useful to avoid pickling errors in certain situations.
     """
-    service_name = service.split(".")[-1]
-    module_name = service[: -len(service_name) - 1]
-    # add working directory to PATH, to allow to importing modules from there
-    sys.path.append(os.getcwd())
-    module = importlib.import_module(module_name)
-    service = getattr(module, service_name)
+    service = _import_service(service)
     threaded_server = rpyc.utils.server.ThreadedServer(service(config), port=int(port))
-    if no_process:
-        threaded_server.start()
-        debug_logger.info(
-            "ThreadedServer was started directly, not in its own process."
-        )
-    else:
-        proc = Process(target=threaded_server.start)
-        proc.start()
-    debug_logger.info("Started {} on port {}.".format(service, port))
+    debug_logger.info(f"Starting {service} on port {port}.")
+    threaded_server.start()
 
 
 def pull_from_service(netloc):

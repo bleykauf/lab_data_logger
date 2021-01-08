@@ -14,5 +14,6 @@ dependencies:
   - pylint
   - rpyc
   - influxdb
-  - multiprocess
-  - click_log
+  - pip
+  - pip:
+      - click_log

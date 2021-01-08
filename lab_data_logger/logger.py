@@ -6,8 +6,7 @@ from time import sleep
 import influxdb
 import rpyc
 
-# pylint: disable=no-name-in-module
-from multiprocess import Event, Process, Queue, Value
+from multiprocessing import Event, Process, Queue, Value
 
 from .utils import parse_netloc
 
