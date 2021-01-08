@@ -42,7 +42,10 @@ class ServiceManager(rpyc.Service):
         proc = Process(target=threaded_server.start)
         proc.service_name = str(service)  # add service name as attribute for display
         proc.start()
-        debug_logger.info(f"Started {str(service)} on port {port}.")
+        if proc.is_alive():
+            debug_logger.info(f"Started {str(service)} on port {port}!")
+        else:
+            debug_logger.info(f"Failed to start {str(service)} on port {port}.")
         self.exposed_services[port] = proc
 
     def exposed_remove_service(self, port):
@@ -64,7 +67,11 @@ class ServiceManager(rpyc.Service):
         display_text += "    PORT    |     SERVICE     \n"
         display_text += "   ------   |   -----------   |\n"
         for port, proc in self.exposed_services.items():
-            display_text += "{:6d}   |   {:11.11}   |\n".format(port, proc.service_name)
+            display_text += "   {:6d}   |   {:11.11}   |\n".format(
+                int(port), proc.service_name
+            )
+
+        return display_text
 
 
 def start_service_manager(manager_port):

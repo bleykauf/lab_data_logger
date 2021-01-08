@@ -86,9 +86,9 @@ def remove(logger_port, netloc):
     logger.remove_puller_from_logger(logger_port, netloc)
 
 
-@logger_cli.command()
+@logger_cli.command("show")
 @click.pass_obj
-def show(logger_port):
+def logger_show(logger_port):
     """Show the status of the logger."""
     logger.show_logger_status(logger_port)
 
@@ -165,6 +165,13 @@ def manager_add(manager_port, service, port, config):
 def manager_remove(manager_port, port):
     """Remove the serivce running on PORT from the ServiceManager."""
     services.remove_service_from_service_manager(manager_port, port)
+
+
+@manager.command("show")
+@click.pass_obj
+def manager_show(manager_port):
+    """Show the status of the service manager."""
+    services.show_service_manager_status(manager_port)
 
 
 if __name__ == "__main__":
