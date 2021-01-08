@@ -36,12 +36,13 @@ class ServiceManager(rpyc.Service):
             service = import_service(service)
 
         threaded_server = rpyc.utils.server.ThreadedServer(
-            service(config), port=int(port)
+            service(config),
+            port=int(port),
         )
         proc = Process(target=threaded_server.start)
         proc.service_name = str(service)  # add service name as attribute for display
         proc.start()
-        debug_logger.info(f"Started {service} on port {port}.")
+        debug_logger.info(f"Started {str(service)} on port {port}.")
         self.exposed_services[port] = proc
 
     def exposed_remove_service(self, port):
