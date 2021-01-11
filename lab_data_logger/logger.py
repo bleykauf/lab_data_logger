@@ -122,12 +122,20 @@ class Pusher:
             host, port, user, password, database
         )
 
-        # shared value for communicating the processes status
-        self._shared_counter = Value("i", -1)
+        # check connection
+        available_databases = self.influxdb_client.get_list_database()
+        available_databases = [item["name"] for item in available_databases]
+        if self.database in available_databases:
+            # shared value for communicating the processes status
+            self._shared_counter = Value("i", -1)
 
-        self.push_process = Process(
-            target=self._push, args=(self.queue, self._shared_counter)
-        )
+            self.push_process = Process(
+                target=self._push, args=(self.queue, self._shared_counter)
+            )
+        else:
+            raise influxdb.exceptions.InfluxDBClientError(
+                f"No database named '{self.database}' found. Make sure it exists."
+            )
 
     @property
     def counter(self):
@@ -283,7 +291,7 @@ def start_logger(logger_port, host, port, user, password, database):
 
     proc = Process(target=threaded_server.start)
     proc.start()
-    debug_logger.info("Started logger on port {}.".format(logger_port))
+    debug_logger.info(f"Started logger on port {logger_port}.")
 
 
 def _get_logger(port):
@@ -305,7 +313,7 @@ def _get_logger(port):
     except ConnectionRefusedError as error:
         raise ConnectionRefusedError(
             "Connection to Logger refused."
-            "Make sure there a Logger is running on port {}.".format(port),
+            f"Make sure there a Logger is running on port {port}.",
         ) from error
     return logger
 
