@@ -41,7 +41,7 @@ def ldl():
 @click.option(
     "--port",
     default=18860,
-    help="Port the Logger service should be startet on (default 18860)",
+    help="Port the Logger service should be started on (default 18860)",
 )
 @click.pass_context
 def logger_cli(ctx, port):
@@ -53,7 +53,7 @@ def logger_cli(ctx, port):
 @click.option(
     "--host", default="localhost", help="Hostname of the InfluxDB (default localhost)"
 )
-@click.option("--port", default=8083, help="Port of the InfluxDB (default 8083)")
+@click.option("--port", default=8086, help="Port of the InfluxDB (default 8086)")
 @click.option("--user", default=None, help="Username of the InfluxDB (optional)")
 @click.option("--password", default=None, help="Password of the InfluxDB (optional)")
 @click.option("--database", help="Name of the database", prompt="Database name: ")
