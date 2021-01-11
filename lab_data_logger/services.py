@@ -91,7 +91,10 @@ def start_service_manager(manager_port):
 
 def _get_service_manager(manager_port):
     try:
-        service_manager = rpyc.connect("localhost", manager_port)
+        # Allow public attribute to be able to pass config dict properly.
+        service_manager = rpyc.connect(
+            "localhost", manager_port, config={"allow_public_attrs": True}
+        )
     except ConnectionRefusedError as error:
         raise ConnectionRefusedError(
             "Connection to ServiceManager refused."
