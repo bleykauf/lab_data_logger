@@ -32,7 +32,7 @@ class Puller:
         Port at which the DataService can be accessed (default 18861).
     measurement : str
         Name of the measurement. This name will be used as the measurement when
-        writing to an InfluxDB (default "test").
+        writing to an InfluxDB.
     interval : float
         Logging interval in seconds.
     """
