@@ -29,6 +29,12 @@ debug_logger.addHandler(file_handler)
 rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
 
 
+def apply_config(ctx, param, config):
+    """Apply the configuration file and overwrite default options of the command."""
+    config = parse_config(config)
+    ctx.default_map = config
+
+
 @click.group()
 @click_log.simple_verbosity_option(debug_logger)
 @click.version_option()
@@ -51,6 +57,13 @@ def logger_cli(ctx, port):
 
 @logger_cli.command()
 @click.option(
+    "--config",
+    type=click.Path(exists=True),
+    help="Path to configuration file",
+    is_eager=True,
+    callback=apply_config,
+)
+@click.option(
     "--host", default="localhost", help="Hostname of the InfluxDB (default localhost)"
 )
 @click.option("--port", default=8086, help="Port of the InfluxDB (default 8086)")
@@ -58,7 +71,7 @@ def logger_cli(ctx, port):
 @click.option("--password", default=None, help="Password of the InfluxDB (optional)")
 @click.option("--database", help="Name of the database", prompt="Database name: ")
 @click.pass_obj  # pass the logger_port
-def start(logger_port, host, port, user, password, database):
+def start(logger_port, host, port, user, password, database, **kwargs):
     """Start the logger."""
     logger.start_logger(logger_port, host, port, user, password, database)
 
@@ -75,7 +88,7 @@ def add(logger_port, netloc, measurement, interval):
     NETLOC is a network location hostname:port or only the port (localhost is assumed).
     The data will be written to the MEASUREMENT.
     """
-    # FIXME: fields is not yer configurable form the command line
+    # FIXME: fields are not yet configurable from the command line
     logger.add_puller_to_logger(logger_port, netloc, measurement, interval, fields=None)
 
 
