@@ -2,6 +2,7 @@
 
 import logging
 import os
+import json
 
 import click
 import click_log
@@ -90,6 +91,22 @@ def add(logger_port, netloc, measurement, interval):
     """
     # FIXME: fields are not yet configurable from the command line
     logger.add_puller_to_logger(logger_port, netloc, measurement, interval, fields=None)
+
+
+@logger_cli.command("batch-add")
+@click.argument("filename", type=click.Path(exists=True))
+@click.pass_obj
+def logger_batch_add(logger_port, filename):
+    """Add multiple services to the logger via FILENAME."""
+    with open(filename) as batch_file:
+        batch = json.load(batch_file)
+
+    for netloc, item in batch.items():
+        measurement = item["measurement"]
+        interval = item["interval"]
+        logger.add_puller_to_logger(
+            logger_port, netloc, measurement, interval, fields=None
+        )
 
 
 @logger_cli.command()
@@ -189,6 +206,26 @@ def manager_remove(manager_port, port):
 def manager_show(manager_port):
     """Show the status of the service manager."""
     services.show_service_manager_status(manager_port)
+
+
+@manager.command("batch-add")
+@click.argument("filename", type=click.Path(exists=True))
+@click.pass_obj
+def manager_batch_add(manager_port, filename):
+    """Add multiple services to the service manager via FILENAME."""
+    with open(filename) as batch_file:
+        batch = json.load(batch_file)
+
+    for port, item in batch.items():
+        port = int(port)
+        config_path = os.path.abspath(item["config"])
+        with open(config_path) as config_file:
+            config = json.load(config_file)
+        service = item["service"]
+        working_dir = os.getcwd()
+        services.add_service_to_service_manager(
+            manager_port, service, port, config=config, working_dir=working_dir
+        )
 
 
 if __name__ == "__main__":
