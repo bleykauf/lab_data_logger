@@ -7,6 +7,7 @@ These are the objects that provide the data that we want to log.
 
 import logging
 import random
+import copy
 from datetime import datetime
 from time import sleep
 
@@ -36,8 +37,7 @@ class ServiceManager(rpyc.Service):
             service = get_service_instance(service, working_dir=working_dir)
 
             threaded_server = rpyc.utils.server.ThreadedServer(
-                service(config),
-                port=int(port),
+                service(config), port=int(port)
             )
             proc = Process(target=threaded_server.start)
             proc.service_name = str(
@@ -139,6 +139,8 @@ class LabDataService(rpyc.Service):
     def __init__(self, config={}):
         super(LabDataService, self).__init__()
         self.config.update(config)  # overwrite default values
+        # copy is necessary to have an actual dict and not a netref
+        self.config = copy.deepcopy(self.config)
         self.prepare_data_acquisition()
 
     config = {}
