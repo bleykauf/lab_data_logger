@@ -1,6 +1,7 @@
 """The command-line interface for ldl."""
 
 import logging
+import os
 
 import click
 import click_log
@@ -156,7 +157,10 @@ def manager_start(manager_port):
 def manager_add(manager_port, service, port, config):
     """Start SERVICE on PORT and add it to the ServiceManager."""
     config = parse_config(config)
-    services.add_service_to_service_manager(manager_port, service, port, config)
+    working_dir = os.getcwd()
+    services.add_service_to_service_manager(
+        manager_port, service, port, config=config, working_dir=working_dir
+    )
 
 
 @manager.command("remove")

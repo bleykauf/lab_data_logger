@@ -13,7 +13,7 @@ from time import sleep
 import rpyc
 from multiprocessing import Process  # pylint: disable=no-name-in-module
 
-from .utils import parse_netloc, import_service
+from .utils import parse_netloc, get_service_instance
 
 debug_logger = logging.getLogger("lab_data_logger.service")
 
@@ -29,11 +29,11 @@ class ServiceManager(rpyc.Service):
         super(ServiceManager, self).__init__()
         self.exposed_services = {}
 
-    def exposed_add_service(self, service, port, config={}):
+    def exposed_add_service(self, service, port, config={}, working_dir=None):
         if port in self.exposed_services.keys():
-            debug_logger.error(f"Port {port} is already being used.")
+            debug_logger(f"Port {port} is already being used.")
         else:
-            service = import_service(service)
+            service = get_service_instance(service, working_dir=working_dir)
 
         threaded_server = rpyc.utils.server.ThreadedServer(
             service(config),
@@ -96,9 +96,13 @@ def _get_service_manager(manager_port):
     return service_manager
 
 
-def add_service_to_service_manager(manager_port, service, port, config={}):
+def add_service_to_service_manager(
+    manager_port, service, port, config={}, working_dir=None
+):
     service_manager = _get_service_manager(manager_port)
-    service_manager.root.exposed_add_service(service, port, config)
+    service_manager.root.exposed_add_service(
+        service, port, config=config, working_dir=working_dir
+    )
 
 
 def remove_service_from_service_manager(manager_port, port):
@@ -227,7 +231,7 @@ class RandomNumberService(LabDataService):
         return {"random_number": random.random()}
 
 
-def start_service(service, port, config={}):
+def start_service(service, port, config={}, working_dir=None):
     """
     Start a LabDataService.
 
@@ -243,7 +247,7 @@ def start_service(service, port, config={}):
         If set to True, the Service will not be started inside a process. This
         can be useful to avoid pickling errors in certain situations.
     """
-    service = import_service(service)
+    service = get_service_instance(service, working_dir=working_dir)
     threaded_server = rpyc.utils.server.ThreadedServer(service(config), port=int(port))
     debug_logger.info(f"Starting {service} on port {port}.")
     threaded_server.start()
