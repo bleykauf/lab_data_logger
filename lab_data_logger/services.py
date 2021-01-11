@@ -31,32 +31,36 @@ class ServiceManager(rpyc.Service):
 
     def exposed_add_service(self, service, port, config={}, working_dir=None):
         if port in self.exposed_services.keys():
-            debug_logger(f"Port {port} is already being used.")
+            debug_logger.error(f"Port {port} is already being used.")
         else:
             service = get_service_instance(service, working_dir=working_dir)
 
-        threaded_server = rpyc.utils.server.ThreadedServer(
-            service(config),
-            port=int(port),
-        )
-        proc = Process(target=threaded_server.start)
-        proc.service_name = str(service)  # add service name as attribute for display
-        proc.start()
-        if proc.is_alive():
-            debug_logger.info(f"Started {str(service)} on port {port}.")
-        else:
-            debug_logger.info(f"Failed to start {str(service)} on port {port}.")
-        self.exposed_services[port] = proc
+            threaded_server = rpyc.utils.server.ThreadedServer(
+                service(config),
+                port=int(port),
+            )
+            proc = Process(target=threaded_server.start)
+            proc.service_name = str(
+                service
+            )  # add service name as attribute for display
+            proc.start()
+            if proc.is_alive():
+                debug_logger.info(f"Started {str(service)} on port {port}.")
+            else:
+                debug_logger.info(f"Failed to start {str(service)} on port {port}.")
+            self.exposed_services[port] = proc
 
     def exposed_remove_service(self, port):
         try:
             proc = self.exposed_services[port]
-            proc.join(JOIN_TIMEOUT)
+            # FIXME: add an event for propererly stopping the process
             if proc.is_alive():
                 proc.terminate()
+                sleep(JOIN_TIMEOUT)
             debug_logger.info(
                 f"Service on port {port} exited with code {proc.exitcode}"
             )
+            del self.exposed_services[port]
         except KeyError:
             debug_logger.error(f"No service running on port {port}")
 
