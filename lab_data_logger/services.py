@@ -181,7 +181,7 @@ class LabDataService(rpyc.Service):
             data["time"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
         # pylint: disable=assignment-from-no-return
-        data["fields"] = self.get_data_fields()
+        data["fields"] = self.get_data_fields(fields=fields)
         self.filter_fields(data, fields=fields)
         return data
 
