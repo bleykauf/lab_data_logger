@@ -15,7 +15,6 @@ from typing import Optional, Union
 
 import rpyc
 
-from .services import LabDataService
 from .utils import get_service_instance, parse_netloc
 
 debug_logger = logging.getLogger("lab_data_logger.service")
@@ -34,7 +33,7 @@ class ServiceManager(rpyc.Service):
 
     def exposed_add_service(
         self,
-        service: Union[str, LabDataService],
+        service: Union[str, "LabDataService"],
         port: int,
         config: Optional[dict] = {},
         working_dir: Optional[str] = None,
@@ -113,7 +112,7 @@ def _get_service_manager(manager_port: int) -> ServiceManager:
 
 def add_service_to_service_manager(
     manager_port: int,
-    service: LabDataService,
+    service: "LabDataService",
     port: int,
     config: Optional[dict] = {},
     working_dir: Optional[str] = None,
