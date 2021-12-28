@@ -6,8 +6,6 @@ import os
 import sys
 from typing import Union
 
-from lab_data_logger.services import LabDataService
-
 
 def parse_netloc(netloc: Union[str, int]) -> tuple[str, int]:
     """Split network location pair hostname:port into the hostname and port.
@@ -34,8 +32,9 @@ def parse_netloc(netloc: Union[str, int]) -> tuple[str, int]:
 
 
 def get_service_instance(
-    service: Union[str, LabDataService], working_dir: str = None
-) -> LabDataService:
+    service: Union[str, "lab_data_logger.services.LabDataService"],
+    working_dir: str = None,
+) -> ".services.LabDataService":
     """Get a LabDataService from a dot separated path.
 
     Args:
