@@ -4,7 +4,7 @@ repos:
     hooks:
       - id: black
         language_version: python3.9
-        exclude: |
+        extend-exclude: |
           (?x)^(
               versioneer.py|
               docs/conf.py|
