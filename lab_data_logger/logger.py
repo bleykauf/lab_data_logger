@@ -3,6 +3,7 @@
 import logging
 from multiprocessing import Event, Process, Queue, Value
 from time import sleep
+from typing import Optional, Union
 
 import influxdb
 import rpyc
@@ -18,25 +19,26 @@ LOGGER_SHOW_INTERVAL = 0.5  # update intervall for show_logger_status
 
 
 class Puller:
-    """
-    Class for pulling data from a DataService.
+    def __init__(
+        self,
+        queue: Queue,
+        host: str,
+        port: int,
+        measurement: str,
+        interval: float,
+        fields: list[str] = None,
+    ):
+        """Class for pulling data from a DataService.
 
-    Parameters
-    ----------
-    queue : multiprocessing.Queue
-        A queue that the pulled data is written to.
-    host : str
-        Hostname where the DataService can be accessed (default 'localhost').
-    port : int
-        Port at which the DataService can be accessed (default 18861).
-    measurement : str
-        Name of the measurement. This name will be used as the measurement when
-        writing to an InfluxDB.
-    interval : float
-        Logging interval in seconds.
-    """
-
-    def __init__(self, queue, host, port, measurement, interval, fields=None):
+        Args:
+            queue: A queue that the pulled data is written to.
+        host: Hostname where the DataService can be accessed (default 'localhost').
+        port: Port at which the DataService can be accessed (default 18861).
+        measurement: Name of the measurement. This name will be used as the measurement
+            when writing to an InfluxDB.
+        interval: Logging interval in seconds.
+        fields: A list of fields to be pulled from the DataService.
+        """
         self.queue = queue
         self.host = host
         self.port = port
@@ -53,9 +55,7 @@ class Puller:
 
     @property
     def counter(self):
-        """
-        Number of times the process has pulled data from the DataService.
-        """  # noqa D401
+        """Number of times the process has pulled data from the DataService."""
         return self._shared_counter.value
 
     def _pull(self, queue, shared_counter, stop_event, fields=None):
@@ -93,26 +93,25 @@ class Puller:
 
 
 class Pusher:
-    """
-    Class that reads from a queue and writes its contents to an InfluxDB.
+    def __init__(
+        self,
+        queue: Queue,
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+        database: str,
+    ):
+        """Class that reads from a queue and writes its contents to an InfluxDB.
 
-    Parameters
-    ----------
-    queue : multiprocessing.Queue
-        A queue that the pulled data is written to.
-    host : str
-        Hostname of the InfluxDB.
-    port : int
-        Port of the InfluxDB.
-    user : str
-        Username of the InfluxDB.
-    password : str
-        Password for the InfluxDB.
-    database : str
-        Name of the database that should be used.
-    """
-
-    def __init__(self, queue, host, port, user, password, database):
+        Args:
+            queue: A queue that the pulled data is written to.
+            host: Hostname of the InfluxDB.
+            port: Port of the InfluxDB.
+            user: Username of the InfluxDB.
+            password: Password for the InfluxDB.
+            database: Name of the database that should be used.
+        """
         self.queue = queue
         self.host = host
         self.port = port
@@ -137,13 +136,11 @@ class Pusher:
             )
 
     @property
-    def counter(self):
-        """
-        Number of times the process has pushed data to the InfluxDB.
-        """  # noqa D401
+    def counter(self) -> int:
+        """Number of times the process has pushed data to the InfluxDB."""
         return self._shared_counter.value
 
-    def _push(self, queue, shared_counter):
+    def _push(self, queue: Queue, shared_counter: Value):
         shared_counter.value += 1  # change from -1 to 0
         while True:
             data = queue.get()
@@ -157,27 +154,24 @@ class Pusher:
 
 
 class Logger(rpyc.Service):
-    """
-    Service comprised of a Pusher and a number of Pullers and methods for
-    managing them.
-
-    Parameters
-    ----------
-    host : str
-        Hostname of the InfluxDB.
-    port : int
-        Port of the InfluxDB.
-    user : str
-        Username of the InfluxDB.
-    password : str
-        Password for the InfluxDB.
-    database : str
-        Name of the database that should be used.
-    """
-
     def __init__(
-        self, host="localhost", port=8086, user=None, password=None, database=None
+        self,
+        host: str = "localhost",
+        port: int = 8086,
+        user: str = None,
+        password: str = None,
+        database: str = None,
     ):
+        """Service comprised of a Pusher and a number of Pullers and methods for
+        managing them.
+
+        Args:
+            host:  Hostname of the InfluxDB.
+            port: Port of the InfluxDB.
+            user: Username of the InfluxDB.
+            password:  Password for the InfluxDB.
+            database: Name of the database that should be used.
+        """
         super(Logger, self).__init__()
         self.queue = Queue()
         self.pusher = Pusher(self.queue, host, port, user, password, database)
@@ -185,21 +179,23 @@ class Logger(rpyc.Service):
         debug_logger.debug("Pusher process started.")
         self.exposed_pullers = {}
 
-    def exposed_add_puller(self, host, port, measurement, interval, fields=None):
-        """
-        Add and start a Puller process.
+    def exposed_add_puller(
+        self,
+        host: str,
+        port: str,
+        measurement: str,
+        interval: float,
+        fields: list[str] = None,
+    ) -> None:
+        """Add and start a Puller process.
 
-        Parameters
-        ----------
-        host : str
-            Hostname where the DataService can be accessed (default 'localhost').
-        port : int
-            Port at which the DataService can be accessed (default 18861).
-        measurement : str
-            Name of the measurement. This name will be used as the measurement
-            when writing to an InfluxDB.
-        interval : float
-            Logging interval in seconds.
+        Args:
+            host: Hostname where the DataService can be accessed (default 'localhost').
+            port: Port at which the DataService can be accessed (default 18861).
+            measurement : Name of the measurement. This name will be used as the
+                measurement when writing to an InfluxDB.
+            interval: Logging interval in seconds.
+            fields: A list of fields to be pulled from the DataService.
         """
         netloc = f"{host}:{port}"
         if netloc in self.exposed_pullers.keys():
@@ -212,13 +208,12 @@ class Logger(rpyc.Service):
             puller.pull_process.start()
             self.exposed_pullers[netloc] = puller
 
-    def exposed_remove_puller(self, netloc):
-        """
-        Stop and remove a puller from the logger.
+    def exposed_remove_puller(self, netloc: Union[str, int]) -> None:
+        """Stop and remove a puller from the logger.
 
-        netloc : str or int
-            Network location, e.g. localhost:18861. If an int is passed,
-            localhost is assumed.
+        Args:
+            netloc: Network location, e.g. localhost:18861. If an int is passed,
+                localhost is assumed.
         """
         host, port = parse_netloc(netloc)
         netloc = f"{host}:{port}"
@@ -239,10 +234,8 @@ class Logger(rpyc.Service):
         except KeyError:
             debug_logger.error(f"No Puller pulling from {netloc}")
 
-    def exposed_get_display_text(self):
-        """
-        Print status of connected DataServices and the InfluxDB, continously.
-        """
+    def exposed_get_display_text(self) -> str:
+        """Print status of connected DataServices and the InfluxDB, continously."""
         display_text = "\nLAB DATA LOGGER\n"
         display_text += "Logging to {} on {}:{} (processed entry {}).\n".format(
             self.pusher.database,
@@ -266,24 +259,23 @@ class Logger(rpyc.Service):
         return display_text
 
 
-def start_logger(logger_port, host, port, user, password, database):
-    """
-    Start a Logger in a Process and expose it via a ThreadedServer.
+def start_logger(
+    logger_port: int,
+    host: str,
+    port: int,
+    user: str,
+    password: str,
+    database: str,
+) -> None:
+    """Start a Logger in a Process and expose it via a ThreadedServer.
 
-    Parameters
-    ----------
-    logger_port : int
-        The port the Logger's methods should be exposed on.
-    host : str
-        Hostname of the InfluxDB.
-    port : int
-        Port of the InfluxDB
-    user : str
-        Username of the InfluxDB.
-    password : str
-        Password of the InfluxDB.
-    database : str
-        Name of the InfluxDB database.
+    Args:
+        logger_port: The port the Logger's methods should be exposed on.
+        host: Hostname of the InfluxDB.
+        port: Port of the InfluxDB
+        user: Username of the InfluxDB.
+        password: Password of the InfluxDB.
+        database: Name of the InfluxDB database.
     """
     logger = Logger(host, port, user, password, database)
     threaded_server = rpyc.utils.server.ThreadedServer(logger, port=logger_port)
@@ -293,18 +285,13 @@ def start_logger(logger_port, host, port, user, password, database):
     debug_logger.info(f"Started logger on port {logger_port}.")
 
 
-def _get_logger(port):
-    """
-    Get connection to a Logger object exposed on a port.
+def _get_logger(port: int) -> rpyc.core.protocol.Connection:
+    """Get connection to a Logger object exposed on a port.
 
-    Parameters
-    ----------
-    port : int
-        Port the Logger is exposed on
+    Args:
+        port: Port the Logger is exposed on
 
-    Returns
-    -------
-    logger : rpyc.core.protocol.Connection
+    Returns:
         Connection to the Logger.
     """
     try:
@@ -317,55 +304,47 @@ def _get_logger(port):
     return logger
 
 
-def add_puller_to_logger(logger_port, netloc, measurement, interval, fields=None):
-    """
-    Add a Puller to a Logger.
+def add_puller_to_logger(
+    logger_port: int,
+    netloc: Union[str, int],
+    measurement: str,
+    interval: float,
+    fields: Optional[list[str]] = None,
+) -> None:
+    """Add a Puller to a Logger.
 
-    Parameters
-    ----------
-    logger_port : int
-        The port the Logger's methods are exposed on.
-    netloc : str or int
-        Network location of the LabDataService that should be pulled. Has the
-        form "hostname:port". If an integer is provided, it is the port on
-        localhost.
-    measurment : str
-        Name of the measurement, i.e. the measurement field of InfluxDB.
-    interval : int
-        Logging interval in seconds.
-    fields : list
-        Optional list of fields that should be returned. If more fields are
-        provided by the service they will be filtered.
+    Args:
+        logger_port: The port the Logger's methods are exposed on.
+        netloc: Network location of the LabDataService that should be pulled. Has the
+            form "hostname:port". If an integer is provided, it is the port on
+            localhost.
+        measurement: Name of the measurement, i.e. the measurement field of InfluxDB.
+        interval: Logging interval in seconds.
+        fields: List of fields that should be returned. If more fields are
+            provided by the service they will be filtered.
     """
     logger = _get_logger(logger_port)
     host, port = parse_netloc(netloc)
     logger.root.exposed_add_puller(host, port, measurement, interval, fields=fields)
 
 
-def remove_puller_from_logger(logger_port, netloc):
-    """
-    Remove a Puller from a Logger.
+def remove_puller_from_logger(logger_port: int, netloc: Union[str, int]) -> None:
+    """Remove a Puller from a Logger.
 
-    Parameters
-    ----------
-    logger_port : int
-        The port the Logger's methods are exposed on.
-    netloc : str
-        Network location of the LabDataService that is being pulled. Has the
-        form "hostname:port".
+    Args:
+    logger_port: The port the Logger's methods are exposed on.
+    netloc: Network location of the LabDataService that is being pulled. Has the form
+        "hostname:port".
     """
     logger = _get_logger(logger_port)
     logger.root.exposed_remove_puller(netloc)
 
 
-def show_logger_status(logger_port):
-    """
-    Show the status of a Logger.
+def show_logger_status(logger_port: int) -> None:
+    """Show the status of a Logger.
 
-    Paramters
-    ---------
-    logger_port : int
-        The port the Logger's methods are exposed on.
+    Args:
+    logger_port: The port the Logger's methods are exposed on.
     """
     logger = rpyc.connect("localhost", logger_port)
     while True:

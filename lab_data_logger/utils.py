@@ -4,22 +4,20 @@ import importlib
 import json
 import os
 import sys
+from typing import Union
+
+from lab_data_logger.services import LabDataService
 
 
-def parse_netloc(netloc):
-    """
-    Split network location pair hostname:port into the hostname and port.
+def parse_netloc(netloc: Union[str, int]) -> tuple[str, int]:
+    """Split network location pair hostname:port into the hostname and port.
 
-    Parameters
-    ----------
-    netloc : str or int
-        Network location, e.g. localhost:18861. If an int is passed, localhost is
-        assumed.
+    Args:
+        netloc: Network location, e.g. localhost:18861. If an int is passed, localhost
+            is assumed.
 
-    Returns
-    -------
-    host : str
-    port : int
+    Returns:
+        Tuple containing the hostname and port.
     """
     split_netloc = netloc.split(":")
     if len(split_netloc) == 2:
@@ -35,23 +33,18 @@ def parse_netloc(netloc):
     return host, port
 
 
-def get_service_instance(service, working_dir=None):
-    """
-    Get a LabDataService from a dot separated path.
+def get_service_instance(
+    service: Union[str, LabDataService], working_dir: str = None
+) -> LabDataService:
+    """Get a LabDataService from a dot separated path.
 
-    Parameters
-    ----------
-    service : str or LabDataService
-        Dot separated path to the LabDataService. For example, you can import the
-        ConstNumberService by passing 'const_numbers.ConstNumberService' from the
+    Args:
+        service: Dot separated path to the LabDataService. For example, you can import
+        the ConstNumberService by passing 'const_numbers.ConstNumberService' from the
         examples folder.
-    working_dir : str
-        Optionally pass the working directory. This is necessary if the ServiceManager
-        is running in a different working directory than the CLI for adding services.
-
-    Returns
-    -------
-    LabDataService
+        working_dir: Optionally pass the working directory. This is necessary if the
+        ServiceManager is running in a different working directory than the CLI for
+        adding services.
     """
     if isinstance(service, str):
         service_name = service.split(".")[-1]
@@ -65,14 +58,14 @@ def get_service_instance(service, working_dir=None):
     return service
 
 
-def parse_config(config):
-    """
-    Load a config file as a dictionary.
+def parse_config(config: str) -> dict:
+    """Load a config file as a dictionary.
 
-    Parameters
-    ----------
-     or return an empty dict.
+    Args:
+        config: Path to the config file.
 
+    Returns:
+        Dictionary containing the configuration.
     """
     if config:
         with open(config) as config_file:

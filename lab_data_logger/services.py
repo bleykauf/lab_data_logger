@@ -9,11 +9,13 @@ import copy
 import logging
 import random
 from datetime import datetime
-from multiprocessing import Process  # pylint: disable=no-name-in-module
+from multiprocessing import Process
 from time import sleep
+from typing import Optional, Union
 
 import rpyc
 
+from .services import LabDataService
 from .utils import get_service_instance, parse_netloc
 
 debug_logger = logging.getLogger("lab_data_logger.service")
@@ -30,7 +32,13 @@ class ServiceManager(rpyc.Service):
         super(ServiceManager, self).__init__()
         self.exposed_services = {}
 
-    def exposed_add_service(self, service, port, config={}, working_dir=None):
+    def exposed_add_service(
+        self,
+        service: Union[str, LabDataService],
+        port: int,
+        config: Optional[dict] = {},
+        working_dir: Optional[str] = None,
+    ) -> None:
         if port in self.exposed_services.keys():
             debug_logger.error(f"Port {port} is already being used.")
         else:
@@ -50,7 +58,7 @@ class ServiceManager(rpyc.Service):
                 debug_logger.info(f"Failed to start {str(service)} on port {port}.")
             self.exposed_services[port] = proc
 
-    def exposed_remove_service(self, port):
+    def exposed_remove_service(self, port: int) -> None:
         try:
             proc = self.exposed_services[port]
             # FIXME: add an event for propererly stopping the process
@@ -64,7 +72,7 @@ class ServiceManager(rpyc.Service):
         except KeyError:
             debug_logger.error(f"No service running on port {port}")
 
-    def exposed_get_display_text(self):
+    def exposed_get_display_text(self) -> str:
         display_text = "\nLAB DATA LOGGER\n"
         display_text = "\nSERVICE MANAGER\n"
 
@@ -78,7 +86,7 @@ class ServiceManager(rpyc.Service):
         return display_text
 
 
-def start_service_manager(manager_port):
+def start_service_manager(manager_port: int) -> None:
     service_manager = ServiceManager()
     threaded_server = rpyc.utils.server.ThreadedServer(
         service_manager, port=manager_port
@@ -89,7 +97,7 @@ def start_service_manager(manager_port):
     debug_logger.info(f"Started service manager on port {manager_port}.")
 
 
-def _get_service_manager(manager_port):
+def _get_service_manager(manager_port: int) -> ServiceManager:
     try:
         # Allow public attribute to be able to pass config dict properly.
         service_manager = rpyc.connect(
@@ -104,20 +112,24 @@ def _get_service_manager(manager_port):
 
 
 def add_service_to_service_manager(
-    manager_port, service, port, config={}, working_dir=None
-):
+    manager_port: int,
+    service: LabDataService,
+    port: int,
+    config: Optional[dict] = {},
+    working_dir: Optional[str] = None,
+) -> None:
     service_manager = _get_service_manager(manager_port)
     service_manager.root.exposed_add_service(
         service, port, config=config, working_dir=working_dir
     )
 
 
-def remove_service_from_service_manager(manager_port, port):
+def remove_service_from_service_manager(manager_port: int, port: int) -> None:
     service_manager = _get_service_manager(manager_port)
     service_manager.root.exposed_remove_service(port)
 
 
-def show_service_manager_status(manager_port):
+def show_service_manager_status(manager_port: int) -> None:
     service_manager = rpyc.connect("localhost", manager_port)
     while True:
         display_text = service_manager.root.exposed_get_display_text()
@@ -126,17 +138,14 @@ def show_service_manager_status(manager_port):
 
 
 class LabDataService(rpyc.Service):
-    """
-    Base class for other data services.
+    def __init__(self, config: dict = {}):
+        """Base class for other data services.
 
-    Parameters
-    ----------
-    config : dict
-        Optional configuration data. Is stored as an attribute for use in
-        `get_data_fields`.
-    """
+        Args:
+            config: Optional configuration data. Is stored as an attribute for use in
+            `get_data_fields`.
+        """
 
-    def __init__(self, config={}):
         super(LabDataService, self).__init__()
         self.config.update(config)  # overwrite default values
         # copy is necessary to have an actual dict and not a netref
@@ -146,36 +155,24 @@ class LabDataService(rpyc.Service):
     config = {}
     """Configuration options."""
 
-    def exposed_get_data(self, fields=None, add_timestamp=True):
-        """
-        Get the data of from the service.
+    def exposed_get_data(
+        self, fields: Optional[list[str]] = None, add_timestamp: bool = True
+    ) -> dict:
+        """Get the data of from the service.
 
-        Parameters
-        ----------
-        fields : list
-            A list of the data fields that should be returned. All other fields will be
-            removed. This list is also passed to the `get_data_fields` method where it
-            can be used to already filter during data aquisition. Defaults to None, i.e.
-            all fields provided are returned.
-        add_timestamp : bool
-            Determines whether a timestamp should be added at the time of data
-            aquisition (the default). If no timestamp is present, influxdb will
-            automatically create one when the data is written to the database.
+        Args:
+            fields: A list of the data fields that should be returned. All other fields
+                will be removed. This list is also passed to the `get_data_fields`
+                method where it can be used to already filter during data aquisition.
+                Defaults to None, i.e. all fields provided are returned.
+            add_timestamp: Determines whether a timestamp should be added at the time of
+                data aquisition (the default). If no timestamp is present, influxdb will
+                automatically create one when the data is written to the database.
 
-        Returns
-        -------
-        data : dict
+        Returns:
             A dict containing the keys "fields" and optionally "time". Note that the
             "measurments" field has to still be added later.
-
-
-        Returns
-        -------
-        data : dict
-            The only field is "random_numbers", containing a random number between 0.0
-            and 1.0.
         """
-
         data = {}
         if add_timestamp:
             data["time"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -185,47 +182,34 @@ class LabDataService(rpyc.Service):
         self.filter_fields(data, fields=fields)
         return data
 
-    def prepare_data_acquisition(self):
+    def prepare_data_acquisition(self) -> None:
         """Do stuff that has to be done before the data aquisition can be started."""
         pass
 
-    def get_data_fields(self, fields=None):
-        """
-        A base method that has to be implemented.
+    def get_data_fields(self, fields: Optional[list[str]] = None) -> dict:
+        """A base method that has to be implemented.
 
-        Parameters
-        ----------
-        fields : list
-            Optional list of fields that should be returned.
+        Args:
+            fields: Optional list of fields that should be returned.
 
-        Returns
-        -------
-        data : dict
-            A dictionary of field : value pairs.
+        Returns:
+        data: A dictionary of field : value pairs.
 
-        Raises
-        ------
-        NotImplementedError
+        Raises:
         """
         raise NotImplementedError
 
     @staticmethod
-    def filter_fields(data, fields):
-        """
-        Filters the data to only contain certain fields.
+    def filter_fields(data: dict, fields: list[str]) -> dict:
+        """Filters the data to only contain certain fields.
 
-        Parameters
-        ---------
-        data : dict
-            Has to have an entry "fields", containing a dict of "field":value
+        Args:
+            data: Has to have an entry "fields", containing a dict of "field":value
             pairs.
-        fields : list
-            Contains the fields that should be kept.
+        fields: Contains the fields that should be kept.
 
-        Returns
-        -------
-        data : dict
-            Same as fields but only with the specified fields.
+        Returns:
+        data: Same as fields but only with the specified fields.
         """
         if fields:
             data["fields"] = {field: data["fields"][field] for field in fields}
@@ -235,26 +219,22 @@ class LabDataService(rpyc.Service):
 class RandomNumberService(LabDataService):
     """A service that generates random numbers between 0.0 and 1.0."""
 
-    def get_data_fields(self, fields=None):
-
+    def get_data_fields(self, fields: Optional[list[str]] = None) -> dict:
         return {"random_number": random.random()}
 
 
-def start_service(service, port, config={}, working_dir=None):
-    """
-    Start a LabDataService.
+def start_service(
+    service: LabDataService,
+    port: int,
+    config: Optional[dict] = {},
+    working_dir: Optional[str] = None,
+) -> None:
+    """Start a LabDataService.
 
-    Parameter
-    ---------
-    service : LabDataService
-        The service to be started.
-    port : int
-        Port the get_data method is exposed on.
-    config : dict
-        Optional dictionary containing the configuration of the service.
-    no_process : bool
-        If set to True, the Service will not be started inside a process. This
-        can be useful to avoid pickling errors in certain situations.
+    Args:
+    service:  The service to be started.
+    port : Port the get_data method is exposed on.
+    config : Optional dictionary containing the configuration of the service.
     """
     service = get_service_instance(service, working_dir=working_dir)
     threaded_server = rpyc.utils.server.ThreadedServer(service(config), port=int(port))
@@ -262,20 +242,15 @@ def start_service(service, port, config={}, working_dir=None):
     threaded_server.start()
 
 
-def pull_from_service(netloc):
-    """
-    Pull data from a LabDataService.
+def pull_from_service(netloc: Union[str, int]) -> dict:
+    """Pull data from a LabDataService.
 
-    Parameters
-    ----------
-    netloc : str or int
-        Network location, e.g. localhost:18861. If an int is passed, localhost is
-        assumed.
+    Args:
+        netloc: Network location, e.g. localhost:18861. If an int is passed, localhost
+        is assumed.
 
-    Returns
-    -------
-    data : dict
-        The data pulled from the service.
+    Returns:
+        data: The data pulled from the service.
     """
     host, port = parse_netloc(netloc)
     service = rpyc.connect(host, port)
