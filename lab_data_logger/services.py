@@ -5,16 +5,16 @@ These are the objects that provide the data that we want to log.
 """
 
 
+import copy
 import logging
 import random
-import copy
 from datetime import datetime
+from multiprocessing import Process  # pylint: disable=no-name-in-module
 from time import sleep
 
 import rpyc
-from multiprocessing import Process  # pylint: disable=no-name-in-module
 
-from .utils import parse_netloc, get_service_instance
+from .utils import get_service_instance, parse_netloc
 
 debug_logger = logging.getLogger("lab_data_logger.service")
 

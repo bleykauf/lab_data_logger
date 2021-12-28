@@ -1,8 +1,8 @@
 """The command-line interface for ldl."""
 
+import json
 import logging
 import os
-import json
 
 import click
 import click_log

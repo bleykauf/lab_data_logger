@@ -1,12 +1,11 @@
 """Classes and functions related to the Logger part of LDL."""
 
 import logging
+from multiprocessing import Event, Process, Queue, Value
 from time import sleep
 
 import influxdb
 import rpyc
-
-from multiprocessing import Event, Process, Queue, Value
 
 from .utils import parse_netloc
 
