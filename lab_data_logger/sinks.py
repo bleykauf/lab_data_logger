@@ -13,7 +13,7 @@ from influxdb.exceptions import InfluxDBClientError
 logger = logging.getLogger("lab_data_logger.recorder")
 
 
-class Target(ABC):
+class Sink(ABC):
     """Class that reads data from a queue and dumps to data somewhere."""
 
     # FIXME: Get the typing right, avoid problems
@@ -44,7 +44,7 @@ class Target(ABC):
         pass
 
 
-class VoidTarget(Target):
+class VoidSink(Sink):
     """Recorder that reads the queue, increments the counter and does nothing."""
 
     def write_points(self, queue: Queue, counter: Synchronized) -> None:
@@ -54,7 +54,7 @@ class VoidTarget(Target):
             counter.value += 1
 
 
-class InfluxDBTarget(Target):
+class InfluxDBSink(Sink):
     def __init__(
         self,
         queue: Queue,

@@ -15,7 +15,7 @@ from rpyc.core.protocol import DEFAULT_CONFIG, Connection
 from rpyc.utils.server import ThreadedServer
 
 from .services import LabDataService
-from .utils import get_service_instance
+from .utils import get_service_class
 
 debug_logger = logging.getLogger("lab_data_logger.pool")
 
@@ -40,7 +40,7 @@ class ServicePool(rpyc.Service):
         if port in self.exposed_services.keys():
             debug_logger.error(f"Port {port} is already being used.")
         else:
-            service = get_service_instance(service, working_dir=working_dir)
+            service = get_service_class(service, working_dir=working_dir)
 
             threaded_server = ThreadedServer(service(config), port=int(port))
             proc = Process(target=threaded_server.start)

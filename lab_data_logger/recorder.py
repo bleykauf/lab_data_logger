@@ -1,100 +1,124 @@
-"""Recorder classes for dumping data."""
+"""Classes and functions related to the Logger part of LDL."""
 
 import logging
-from abc import ABC, abstractmethod
-from multiprocessing import Process, Queue, Value
+from multiprocessing import Queue
 
-import influxdb
+import rpyc
+from rpyc.core.protocol import DEFAULT_CONFIG
+
+from .netloc import Netloc
+from .sinks import Sink
+from .source import Source
 
 logger = logging.getLogger("lab_data_logger.recorder")
 
+DEFAULT_CONFIG["allow_pickle"] = True
 
-class Recorder(ABC):
-    """Class that reads data from a queue and dumps to data somewhere."""
-
-    @property
-    def counter(self) -> Value:
-        """
-        Shared counter to communicate the number of data points written to the database.
-        """
-        if not hasattr(self, "_counter"):
-            self._counter = Value("i", -1)
-        return self._counter
-
-    @property
-    def dump_process(self):
-        if not hasattr(self, "_dump_process"):
-            self._dump_process = Process(target=self.write_points)
-        return self._dump_process
-
-    @abstractmethod
-    def write_points(self):
-        pass
+JOIN_TIMEOUT = 1  # timeout for joining processes
+LOGGER_SHOW_INTERVAL = 0.5  # update intervall for show_logger_status
 
 
-class VoidRecorder(Recorder):
-    """Recorder that reads the queue, increments the counter and does nothing."""
-
-    def write_points(self):
-        self.counter.value += 1  # change from -1 to 0
-        while True:
-            _ = self.queue.get()
-            self.counter.value += 1
-
-
-class InfluxDBRecorder(Recorder):
-    def __init__(
-        self,
-        queue: Queue,
-        host: str,
-        port: int,
-        user: str,
-        password: str,
-        database: str,
-    ) -> None:
-        """Recorder that reads from a queue and writes its contents to an InfluxDB.
+class RecorderService(rpyc.Service):
+    def __init__(self) -> None:
+        """Service comprised of a Pusher and a number of Pullers and methods for
+        managing them.
 
         Args:
-            queue: A queue that the pulled data is written to.
-            host: Hostname of the InfluxDB.
+            host:  Hostname of the InfluxDB.
             port: Port of the InfluxDB.
             user: Username of the InfluxDB.
-            password: Password for the InfluxDB.
-            database: Name of the InfluxDB database that should be used.
-
-        Attributes:
-            queue: A queue that data is read from.
-            counter: A shared counter that is used to count the number of data points
-                that have been written to the database.
-            push_process: The process that is used to write to the database.
-            influxdb_client: The InfluxDB client that is used to write to the database.
+            password:  Password for the InfluxDB.
+            database: Name of the database that should be used.
         """
-        self.queue = queue
-        self.influxdb_client = influxdb.InfluxDBClient(
-            host, port, user, password, database
-        )
+        super(RecorderService, self).__init__()
+        self.queue = Queue()
+        self.connected_sources: dict = {}
 
-        # check connection
-        available_databases = self.influxdb_client.get_list_database()
-        available_databases = [item["name"] for item in available_databases]
-        if self.database not in available_databases:
-            # FIXME: Make this a custom exception.
-            raise influxdb.exceptions.InfluxDBClientError(
-                f"No database named '{database}' found. Make sure it exists."
-            )
-
-    def write_points(self) -> None:
-        """Write points to the database and increment the counter.
+    def set_sink(self, sink: Sink) -> None:
+        """Set the sink of the logger.
 
         Args:
-            queue: A queue from which data is read.
+            sink: The sink to be used.
         """
-        self.counter.value += 1  # change from -1 to 0
-        while True:
-            data = self.queue.get()
-            try:
-                self.influxdb_client.write_points(data)
-                self.counter.value += 1
-            except influxdb.exceptions.InfluxDBClientError:
-                # FIXME: Change behaviour depending on which error is thrown.
-                logger.exception(f"Could not write data {data} to the database.")
+        self.sink = sink
+        self.sink.write_process.start()
+        logger.debug("Sink process started.")
+
+    def connect_source(
+        self,
+        netloc: Netloc,
+        measurement: str,
+        interval: float,
+        fields: list[str] = [],
+    ) -> None:
+        """
+        Connect to a Source and start pulling
+
+        Args:
+            host: Hostname where the DataService can be accessed (default 'localhost').
+            port: Port at which the DataService can be accessed (default 18861).
+            measurement : Name of the measurement. This name will be used as the
+                measurement when writing to an InfluxDB.
+            interval: Logging interval in seconds.
+            fields: A list of fields to be pulled from the DataService.
+        """
+        if netloc in self.connected_sources.keys():
+            logger.error(f"{netloc} is already connected.")
+        else:
+            source = Source(
+                queue=self.queue,
+                netloc=netloc,
+                measurement=measurement,
+                interval=interval,
+                fields=fields,
+            )
+            logger.info(f"Starting pull process for {netloc}.")
+            source.pull_process.start()
+            self.connected_sources[netloc] = source
+
+    def remove_source(self, netloc: Netloc) -> None:
+        """Stop and remove a puller from the logger.
+
+        Args:
+            netloc: Network location, e.g. localhost:18861. If an int is passed,
+                localhost is assumed.
+        """
+        try:
+            source = self.connected_sources[netloc]
+            # shutting down via Event
+            source.stop_event.set()
+            source.pull_process.join(JOIN_TIMEOUT)
+            if source.pull_process.is_alive():
+                # if not successful, terminate
+                source.pull_process.terminate()
+            logger.info(
+                "Puller process for {} exited with code {}.".format(
+                    netloc, source.pull_process.exitcode
+                )
+            )
+            del self.connected_sources[netloc]
+        except KeyError:
+            logger.error(f"No Puller pulling from {netloc}")
+
+    @property
+    def display_text(self) -> str:
+        """Print status of connected DataServices and the InfluxDB, continously."""
+        display_text = "\nLAB DATA LOGGER\n"
+        display_text += "Logging to {} (processed entry {}).\n".format(
+            self.sink,
+            self.sink.counter,
+        )
+
+        display_text += "Pulling from these services:\n"
+        display_text += (
+            "MEASUREMENT   |     HOSTNAME        |    PORT    |   COUNTER   \n"
+        )
+        display_text += (
+            "-----------   |   ---------------   |   ------   |   -------   \n"
+        )
+        for _, puller in self.connected_sources.items():
+            display_text += "{:11.11}   |   {:15.15}   |   {:6d}   |   {:7d}\n".format(
+                puller.measurement, puller.host, puller.port, puller.counter
+            )
+
+        return display_text

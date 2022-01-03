@@ -1,7 +1,6 @@
 """Network location dataclass and utility functions."""
 
 from dataclasses import dataclass
-
 from typing import Union
 
 
@@ -11,6 +10,9 @@ class Netloc:
 
     port: int
     host: str = "localhost"
+
+    def __str__(self) -> str:
+        return f"{self.host}:{self.port}"
 
 
 def create_netloc(netloc: Union[str, int]) -> Netloc:
