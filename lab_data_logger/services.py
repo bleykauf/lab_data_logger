@@ -8,8 +8,7 @@ import copy
 import logging
 import random
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Any
+from typing import Any, Union
 
 import rpyc
 from rpyc.core.protocol import DEFAULT_CONFIG
@@ -19,8 +18,9 @@ debug_logger = logging.getLogger("lab_data_logger.services")
 # multiprocessing needs pickling
 DEFAULT_CONFIG["allow_pickle"] = True
 
-SHOW_INTERVAL = 0.5
-JOIN_TIMEOUT = 1
+
+FieldValue = Union[int, float, str, bool]
+Fields = dict[str, FieldValue]
 
 
 class LabDataService(ABC, rpyc.Service):
@@ -42,66 +42,36 @@ class LabDataService(ABC, rpyc.Service):
     config = {}
     """Configuration options."""
 
-    def get_data(self, fields: list[str] = [], add_timestamp: bool = True) -> dict:
-        """Get the data of from the service.
-
-        Args:
-            fields: A list of the data fields that should be returned. All other fields
-                will be removed. This list is also passed to the `get_data_fields`
-                method where it can be used to already filter during data aquisition.
-                Defaults to None, i.e. all fields provided are returned.
-            add_timestamp: Determines whether a timestamp should be added at the time of
-                data aquisition (the default). If no timestamp is present, influxdb will
-                automatically create one when the data is written to the database.
-
-        Returns:
-            A dict containing the keys "fields" and optionally "time". Note that the
-            "measurments" field has to still be added later.
-        """
-        data = {}
-        if add_timestamp:
-            data["time"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        # pylint: disable=assignment-from-no-return
-        data["fields"] = self.get_data_fields(fields=fields)
-        self.filter_fields(data, fields=fields)
-        return data
-
     def _post_init(self) -> None:
         """Do stuff that has to be done before the data aquisition can be started."""
         pass
 
+    def get_data(self, requested_fields: list[str] = []) -> Fields:
+        """Get the data of from the service."""
+
+        fields = self.get_data_fields(requested_fields)
+        if requested_fields:
+            fields = {key: fields[key] for key in fields}
+        return fields
+
     @abstractmethod
-    def get_data_fields(self, fields: list[str] = []) -> dict:
-        """A base method that has to be implemented.
-
-        Args:
-            fields: Optional list of fields that should be returned.
-
-        Returns:
-        data: A dictionary of field : value pairs.
-        """
-        pass
-
-    @staticmethod
-    def filter_fields(data: dict, fields: list[str] = []) -> dict:
-        """Filters the data to only contain certain fields.
-
-        Args:
-            data: Has to have an entry "fields", containing a dict of "field":value
-            pairs.
-        fields: Contains the fields that should be kept.
-
-        Returns:
-        data: Same as fields but only with the specified fields.
-        """
-        if fields:
-            data["fields"] = {field: data["fields"][field] for field in fields}
-        return data
+    def get_data_fields(self, requested_fields: list[str] = []) -> Fields:
+        """Base method that has to be implemented."""
+        ...
 
 
 class RandomNumberService(LabDataService):
     """A service that generates random numbers between 0.0 and 1.0."""
 
-    def get_data_fields(self, fields: list[str] = []) -> dict:
+    def get_data_fields(self, requested_fields: list[str] = []) -> Fields:
         return {"random_number": random.random()}
+
+
+def start_service(service: LabDataService, port: int = 18813) -> None:
+    """
+    Start a service in a ThreadedServer
+    """
+    threaded_server = rpyc.ThreadedServer(
+        service=service, port=port, protocol_config={"allow_public_attrs": True}
+    )
+    threaded_server.start()
