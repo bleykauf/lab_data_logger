@@ -64,6 +64,7 @@ class Puller:
                     logger.error(
                         f"Connection to {self.netloc} closed by peer (EOFError)."
                     )
+                    break
         finally:
             logger.debug("Setting stop event for pulling process.")
             self.stop_event.set()

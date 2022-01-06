@@ -11,12 +11,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Union
 
 import rpyc
-from rpyc.core.protocol import DEFAULT_CONFIG
 
 debug_logger = logging.getLogger("lab_data_logger.services")
-
-# multiprocessing needs pickling
-DEFAULT_CONFIG["allow_pickle"] = True
 
 
 FieldValue = Union[int, float, str, bool]
@@ -67,11 +63,13 @@ class RandomNumberService(LabDataService):
         return {"random_number": random.random()}
 
 
-def start_service(service: LabDataService, port: int = 18813) -> None:
+def start_service(service: LabDataService, port: int) -> None:
     """
     Start a service in a ThreadedServer
     """
     threaded_server = rpyc.ThreadedServer(
-        service=service, port=port, protocol_config={"allow_public_attrs": True}
+        service=service,
+        port=port,
+        protocol_config={"allow_public_attrs": True, "allow_pickle": True},
     )
     threaded_server.start()

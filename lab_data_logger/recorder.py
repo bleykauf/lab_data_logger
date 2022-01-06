@@ -1,19 +1,16 @@
 """Classes and functions related to the Logger part of LDL."""
 
 import logging
-from dataclasses import field
 from multiprocessing import Queue
 
 import rpyc
-from rpyc.core.protocol import DEFAULT_CONFIG
 
 from .netloc import Netloc
 from .puller import Puller, Tags
-from .writer import Writer
+from .writer import PrintWriter
 
 logger = logging.getLogger("lab_data_logger.recorder")
 
-DEFAULT_CONFIG["allow_pickle"] = True
 
 JOIN_TIMEOUT = 1  # timeout for joining processes
 LOGGER_SHOW_INTERVAL = 0.5  # update intervall for show_logger_status
@@ -27,15 +24,15 @@ class RecorderService(rpyc.Service):
         """
         super(RecorderService, self).__init__()
         self.queue = Queue()
-        self.connected_sources: dict[Netloc, Puller] = field(default_factory=dict)
+        self.connected_sources = {}
 
-    def set_writer(self, writer: Writer) -> None:
+    def set_writer(self) -> None:
         """Set the writer of the recorder.
 
         Args:
             sink: The sink to be used.
         """
-        self.writer = writer
+        self.writer = PrintWriter(self.queue)
         self.writer.write_process.start()
         logger.debug("Writer process started.")
 
@@ -44,14 +41,14 @@ class RecorderService(rpyc.Service):
         netloc: Netloc,
         interval: float,
         measurement: str,
-        tags: Tags = field(default_factory=dict),
-        requested_fields: list[str] = field(default_factory=list),
+        tags: Tags = {},
+        requested_fields: list[str] = [],
     ) -> None:
         """
         Connect to a Source and start pulling data.
         """
         if netloc in self.connected_sources.keys():
-            logger.error(f"{netloc} is already connected.")
+            logger.error(f"{netloc!s} is already connected.")
         else:
             puller = Puller(
                 queue=self.queue,
@@ -61,7 +58,7 @@ class RecorderService(rpyc.Service):
                 requested_fields=requested_fields,
                 tags=tags,
             )
-            logger.info(f"Starting pull process for {netloc}.")
+            logger.info(f"Starting pull process for {netloc!s}.")
             puller.pull_process.start()
             self.connected_sources[netloc] = puller
 
@@ -83,3 +80,13 @@ class RecorderService(rpyc.Service):
             del self.connected_sources[netloc]
         except KeyError:
             logger.error(f"No Puller pulling from {netloc}")
+
+
+def start_recorder(port: int) -> None:
+    recorder = RecorderService()
+    threaded_server = rpyc.ThreadedServer(
+        service=recorder,
+        port=port,
+        protocol_config={"allow_public_attrs": True, "allow_pickle": True},
+    )
+    threaded_server.start()

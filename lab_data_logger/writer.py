@@ -17,8 +17,6 @@ class Writer(ABC):
     def __init__(self, queue: Queue) -> None:
         self.queue = queue
         self.counter = Value("i", -1)
-
-    def __post_init__(self):
         self.write_process = Process(target=self.write_continously)
 
     @abstractmethod
@@ -36,13 +34,22 @@ class VoidWriter(Writer):
             self.counter.value += 1
 
 
+class PrintWriter(Writer):
+    def write_continously(self) -> None:
+        self.counter.value += 1
+        while True:
+            message = self.queue.get()
+            print(message)
+            self.counter.value += 1
+
+
 class InfluxDBWriter(Writer):
     """Recorder that reads from a queue and writes its contents to an InfluxDB."""
 
     def __init__(self, queue: Queue, client: InfluxDBClient):
         super().__init__(queue)
-        self.client = client
 
+        self.client = client
         # check connection
         available_databases = self.client.get_list_database()
         available_databases = [item["name"] for item in available_databases]
