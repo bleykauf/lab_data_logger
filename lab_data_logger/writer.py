@@ -14,10 +14,12 @@ logger = logging.getLogger("lab_data_logger.recorder")
 class Writer(ABC):
     """Class that reads data from a queue and dumps to data somewhere."""
 
-    def __init__(self, queue: Queue) -> None:
-        self.queue = queue
+    def __init__(self) -> None:
         self.counter = Value("i", -1)
         self.write_process = Process(target=self.write_continously)
+
+    def connect_queue(self, queue: Queue) -> None:
+        self.queue = queue
 
     @abstractmethod
     def write_continously(self) -> None:
@@ -46,8 +48,8 @@ class PrintWriter(Writer):
 class InfluxDBWriter(Writer):
     """Recorder that reads from a queue and writes its contents to an InfluxDB."""
 
-    def __init__(self, queue: Queue, client: InfluxDBClient):
-        super().__init__(queue)
+    def __init__(self, client: InfluxDBClient):
+        super().__init__()
 
         self.client = client
         # check connection

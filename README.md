@@ -10,6 +10,77 @@ A command-line tool that allows logging of data locally or over a network to a I
 pip install lab_data_logger
 ```
 
+## Module diagram
+```mermaid
+ classDiagram
+    class RecorderService{
+    queue
+    connected_sources
+    set_writer()
+    connect_source()
+    disconnect_source()
+    }
+    class RandomNumberService{
+        <<LabDataService>>
+        get_data()
+    }
+    class ConstNumberService{
+        <<LabDataService>>
+        get_data()
+    }
+    class connected_sources{
+        Puller
+      }
+    class Puller1{
+        <<Puller>>
+        queue
+        netloc
+        counter
+        stop_event
+        interval
+        measurement
+        tags
+        requested_fields
+        pull_continously()
+    }
+    class Puller2{
+        <<Puller>>
+        queue
+        netloc
+        counter
+        stop_event
+        interval
+        measurement
+        tags
+        pull_process
+        requested_fields
+        pull_continously()
+    }
+      class Writer{
+          counter
+          write_process
+          connect_queue()
+          write_continously()
+      }
+      class Queue{
+          Message
+          put()
+          get()
+      }
+    RecorderService --* connected_sources
+    RecorderService <--> Writer : managing
+    Writer <|-- Queue : gets\n Message
+    Puller1 --|> Queue : puts \n Message
+    Puller2 --|> Queue : puts \n Message
+    Puller1 <|-- ConstNumberService : receives \n Message
+    Puller1 --> ConstNumberService : queries
+    Puller2 <|-- RandomNumberService : receives \n Message
+    Puller2 --> RandomNumberService : queries
+    connected_sources --* Puller1
+    connected_sources --* Puller2
+
+```
+
 ## Usage
 ### Basic usage
 
