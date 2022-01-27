@@ -3,7 +3,7 @@
 import copy
 import logging
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Type
 
 import rpyc
 
@@ -48,7 +48,7 @@ class LabDataService(ABC, rpyc.Service):
         ...
 
 
-def start_service(service: LabDataService, port: int) -> None:
+def start_service(service: Type[LabDataService], port: int) -> None:
     """
     Start a service in a ThreadedServer.
     """
