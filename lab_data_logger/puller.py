@@ -30,6 +30,7 @@ class Puller:
     def pull_continously(self) -> None:
         # the worker of the pulling process
         try:
+            # FIXME: Use with statement
             connection = rpyc.connect(self.netloc.host, self.netloc.port)
             logger.info(f"Connected to {self.netloc}.")
         except ConnectionRefusedError:

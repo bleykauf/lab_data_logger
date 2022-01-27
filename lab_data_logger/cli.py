@@ -103,18 +103,14 @@ def connect_service_to_recorder(
 
     NETLOC is a network location 'hostname:port'.
     """
-    # connect to recorder
-    recorder = rpyc.connect(
-        recorder_netloc.host,
-        recorder_netloc.port,
-    )
     # parse netloc and create Netloc object
     host, port = netloc.split(":")
     service_netloc = Netloc(host=host, port=int(port))
-    # connect recorder to service
-    recorder.root.connect_source(
-        service_netloc, interval=interval, measurement=measurement
-    )
+    # connect to recorder and connect to service
+    with rpyc.connect(recorder_netloc.host, recorder_netloc.port) as connection:
+        connection.root.connect_source(
+            service_netloc, interval=interval, measurement=measurement
+        )
 
 
 @recorder.command("disconnect")
@@ -129,12 +125,12 @@ def disconnect_service_from_recorder(
     NETLOC is a network location 'hostname:port'.
     """
     # connect to recorder
-    recorder = rpyc.connect(recorder_netloc.host, recorder_netloc.port)
     # parse netloc and create Netloc object
     host, port = service_netloc.split(":")
     netloc = Netloc(host=host, port=int(port))
-    # connect recorder to service
-    recorder.root.disconnect_source(netloc)
+    # connect recorder annd disconnect from service
+    with rpyc.connect(recorder_netloc.host, recorder_netloc.port) as connection:
+        connection.root.disconnect_source(netloc)
 
 
 @ldl.group("service")
@@ -188,6 +184,6 @@ def pull_from_service(netloc: Netloc) -> None:
     """
     Pull data from a LabDataService located at NETLOC.
     """
-    service = rpyc.connect(netloc.host, netloc.port)
-    data = service.root.get_data()
+    with rpyc.connect(netloc.host, netloc.port) as connection:
+        data = connection.root.get_data()
     print(data)

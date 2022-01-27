@@ -32,7 +32,7 @@ class PiPyADCService(LabDataService):
         self.ads = ADS1256(ADS1256_default_config)
         self.ads.cal_self()
 
-    def _get_data_fields(self, **kwargs):
+    def _get_data_fields(self, requested_fields: list[str] = []):
         raw_channels = self.ads.read_sequence(self.CH_SEQUENCE)
         voltages = [i * self.ads.v_per_digit for i in raw_channels]
 
