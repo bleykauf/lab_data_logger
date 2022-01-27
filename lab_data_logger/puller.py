@@ -7,7 +7,6 @@ from time import sleep
 import rpyc
 
 from .common import Message, Netloc
-from .typing import Tags
 
 logger = logging.getLogger("lab_data_logger.puller")
 
@@ -20,7 +19,7 @@ class Puller:
     netloc: Netloc
     interval: float
     measurement: str
-    tags: Tags = field(default_factory=dict)
+    tags: list[str] = field(default_factory=list)
     requested_fields: list[str] = field(default_factory=list)
 
     def __post_init__(self):

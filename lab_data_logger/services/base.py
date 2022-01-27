@@ -7,7 +7,7 @@ from typing import Any, Type
 
 import rpyc
 
-from ..typing import Fields
+from ..common import Fields
 
 logger = logging.getLogger("lab_data_logger.services")
 

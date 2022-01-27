@@ -14,9 +14,14 @@ logger = logging.getLogger("lab_data_logger.recorder")
 class Writer(ABC):
     """Class that reads data from a queue and dumps to data somewhere."""
 
-    def __init__(self) -> None:
+    def __init__(self, config: dict = {}) -> None:
+        self.config = config
         self.counter = Value("i", -1)
         self.write_process = Process(target=self.write_continously)
+        self._post_init()
+
+    def _post_init(self) -> None:
+        pass
 
     def connect_queue(self, queue: Queue) -> None:
         self.queue = queue
@@ -45,13 +50,25 @@ class PrintWriter(Writer):
             self.counter.value += 1
 
 
+class FileWriter(Writer):
+    def __init__(self, filename: str) -> None:
+        super().__init__()
+        self.filename = filename
+
+    def write_continously(self) -> None:
+        self.counter.value += 1  # change from -1 to 0
+        with open(self.filename, "w") as f:
+            while True:
+                message = self.queue.get()
+                f.write(f"{message}\n")
+                self.counter.value += 1
+
+
 class InfluxDBWriter(Writer):
     """Recorder that reads from a queue and writes its contents to an InfluxDB."""
 
-    def __init__(self, client: InfluxDBClient):
-        super().__init__()
-
-        self.client = client
+    def _post_init(self) -> None:
+        self.client = InfluxDBClient(**self.config)
         # check connection
         available_databases = self.client.get_list_database()
         available_databases = [item["name"] for item in available_databases]

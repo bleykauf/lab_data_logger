@@ -1,6 +1,9 @@
 from dataclasses import dataclass, field
+from typing import Union
 
-from .typing import Fields, Tags
+# types allowed by influxdb
+FieldValue = Union[int, float, str, bool]
+Fields = dict[str, FieldValue]
 
 
 @dataclass(eq=True, frozen=True)
@@ -20,5 +23,5 @@ class Message:
 
     measurement: str
     time: str
-    tags: Tags = field(default_factory=dict)
+    tags: list[str] = field(default_factory=list)
     fields: Fields = field(default_factory=dict)

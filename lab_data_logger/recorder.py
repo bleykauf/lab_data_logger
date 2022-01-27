@@ -8,7 +8,7 @@ from typing import Type
 import rpyc
 
 from .common import Netloc
-from .puller import Puller, Tags
+from .puller import Puller
 from .writer import Writer
 
 logger = logging.getLogger("lab_data_logger.recorder")
@@ -27,13 +27,13 @@ class RecorderService(rpyc.Service):
         self.queue = Queue()
         self.connected_sources = {}
 
-    def set_writer(self, writer: Type[Writer], args: tuple = ()) -> None:
+    def set_writer(self, writer: Type[Writer], config: dict = {}) -> None:
         """
         Set the writer of the recorder.
         """
         # Copy to make writer available to the Writer class.
         writer = deepcopy(writer)
-        self.writer = writer(*args)
+        self.writer = writer(config)
         self.writer.connect_queue(self.queue)
         self.writer.write_process.start()
         logger.debug("Writer process started.")
@@ -43,7 +43,7 @@ class RecorderService(rpyc.Service):
         netloc: Netloc,
         interval: float,
         measurement: str,
-        tags: Tags = {},
+        tags: list[str] = [],
         requested_fields: list[str] = [],
     ) -> None:
         """
@@ -82,13 +82,3 @@ class RecorderService(rpyc.Service):
             del self.connected_sources[netloc]
         except KeyError:
             logger.error(f"No Puller pulling from {netloc}")
-
-
-def start_recorder(port: int) -> None:
-    recorder = RecorderService()
-    threaded_server = rpyc.ThreadedServer(
-        service=recorder,
-        port=port,
-        protocol_config={"allow_public_attrs": True, "allow_pickle": True},
-    )
-    threaded_server.start()

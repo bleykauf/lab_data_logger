@@ -1,6 +1,6 @@
 from random import random
 
-from ..typing import Fields
+from ..common import Fields
 from .base import LabDataService
 
 
