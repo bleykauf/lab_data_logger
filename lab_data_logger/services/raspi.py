@@ -1,3 +1,4 @@
+# type: ignore
 from pipyadc import ADS1256, ADS1256_default_config
 from pipyadc.ADS1256_definitions import (
     NEG_AINCOM,

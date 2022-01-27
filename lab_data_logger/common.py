@@ -1,4 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from .typing import Fields, Tags
 
 
 @dataclass(eq=True, frozen=True)
@@ -10,3 +12,11 @@ class Netloc:
 
     def __str__(self) -> str:
         return f"{self.host}:{self.port}"
+
+
+@dataclass
+class Message:
+    measurement: str
+    time: str
+    tags: Tags = field(default_factory=dict)
+    fields: Fields = field(default_factory=dict)
