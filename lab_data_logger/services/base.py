@@ -36,14 +36,13 @@ class LabDataService(ABC, rpyc.Service):
 
     def get_data(self, requested_fields: list[str] = []) -> Fields:
         """Get the data of from the service."""
-
-        fields = self.get_data_fields(requested_fields)
+        fields = self._get_data_fields(requested_fields)
         if requested_fields:
-            fields = {key: fields[key] for key in fields}
+            fields = {key: fields[key] for key in fields if key in requested_fields}
         return fields
 
     @abstractmethod
-    def get_data_fields(self, requested_fields: list[str] = []) -> Fields:
+    def _get_data_fields(self, requested_fields: list[str] = []) -> Fields:
         """Base method that has to be implemented."""
         ...
 
