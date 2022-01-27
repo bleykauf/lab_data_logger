@@ -16,6 +16,8 @@ class Netloc:
 
 @dataclass
 class Message:
+    """Message class for passing data between Puller and Writer."""
+
     measurement: str
     time: str
     tags: Tags = field(default_factory=dict)

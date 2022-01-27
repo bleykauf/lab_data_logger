@@ -21,8 +21,7 @@ LOGGER_SHOW_INTERVAL = 0.5  # update intervall for show_logger_status
 class RecorderService(rpyc.Service):
     def __init__(self) -> None:
         """
-        Service comprised of a Writer and a number of Pullers and methods for
-        managing them.
+        Service comprised of a Writer, various Pullers and methods for managing them.
         """
         super(RecorderService, self).__init__()
         self.queue = Queue()
@@ -48,7 +47,7 @@ class RecorderService(rpyc.Service):
         requested_fields: list[str] = [],
     ) -> None:
         """
-        Connect to a Source and start pulling data.
+        Connect to a LabDataService and start pulling data.
         """
         if netloc in self.connected_sources.keys():
             logger.error(f"{netloc!s} is already connected.")
