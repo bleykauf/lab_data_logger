@@ -1,7 +1,5 @@
 from random import random
 
-import rpyc
-
 from ..typing import Fields
 from .base import LabDataService
 
