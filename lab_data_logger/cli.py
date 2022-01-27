@@ -5,10 +5,12 @@ from importlib import import_module
 import click
 import click_log
 import rpyc
+from rpyc.core.protocol import DEFAULT_CONFIG
 
-from . import writer as writer_module
 from .common import Netloc
 from .recorder import RecorderService
+
+DEFAULT_CONFIG["allow_pickle"] = True
 
 logger = logging.getLogger("lab_data_logger")
 logger.setLevel(logging.DEBUG)
@@ -45,18 +47,32 @@ def recorder(ctx, netloc: str):
 
 
 @recorder.command("start")
-@click.option("--writer", default="VoidWriter", help="Writer to use for recording.")
-@click.option("--config", type=click.Path(exists=True), help="Configuration file path.")
+@click.argument("writer", type=str)
+@click.option(
+    "--config",
+    "config_file",
+    type=click.Path(exists=True),
+    help="Configuration file path.",
+)
 @click.pass_obj
 def start_recorder_and_set_writer(
-    recorder_netloc: Netloc, writer: str, config: str
+    recorder_netloc: Netloc, writer: str, config_file: str = ""
 ) -> None:
 
     # parse config
-    config = dict(ConfigParser().read(config)[writer])  # type: ignore
+    if config_file:
+        print(config_file)
+        config = ConfigParser()
+        config.read(config_file)
+        config = dict(config[writer])
+        writer = config.pop("class")
+    else:
+        config = {}
 
     recorder = RecorderService()
-    writer_class = getattr(writer_module, writer)
+    module, cls = writer.rsplit(".", 1)
+    module = import_module(module)
+    writer_class = getattr(module, cls)
     recorder.set_writer(writer_class(config))
 
     threaded_server = rpyc.ThreadedServer(
@@ -78,7 +94,7 @@ def start_recorder_and_set_writer(
 @click.pass_obj
 def connect_service_to_recorder(
     recorder_netloc: Netloc,
-    service_netloc: str,
+    netloc: str,
     interval: float,
     measurement: str,
 ) -> None:
@@ -88,12 +104,17 @@ def connect_service_to_recorder(
     NETLOC is a network location 'hostname:port'.
     """
     # connect to recorder
-    recorder = rpyc.connect(recorder_netloc.host, recorder_netloc.port)
+    recorder = rpyc.connect(
+        recorder_netloc.host,
+        recorder_netloc.port,
+    )
     # parse netloc and create Netloc object
-    host, port = service_netloc.split(":")
-    netloc = Netloc(host=host, port=int(port))
+    host, port = netloc.split(":")
+    service_netloc = Netloc(host=host, port=int(port))
     # connect recorder to service
-    recorder.root.connect_source(netloc, interval=interval, measurement=measurement)
+    recorder.root.connect_source(
+        service_netloc, interval=interval, measurement=measurement
+    )
 
 
 @recorder.command("disconnect")
@@ -127,18 +148,28 @@ def service(ctx, netloc: str):
 
 @service.command("start")
 @click.argument("service", type=str)
-@click.option("--config", type=click.Path(exists=True), help="Configuration file path.")
+@click.option(
+    "--config",
+    "config_file",
+    type=click.Path(exists=True),
+    help="Configuration file path.",
+)
 @click.pass_obj
-def start_service(netloc: Netloc, service: str, config: str) -> None:
+def start_service(netloc: Netloc, service: str, config_file: str = "") -> None:
     """
     Start a DataService located at NETLOC.
 
     NETLOC is a network location 'hostname:port'.
     """
     # parse config
-    config = dict(ConfigParser().read(config)[service])  # type: ignore
+    if config_file:
+        config = ConfigParser()
+        config.read(config_file)
+        config = dict(config[service])
 
-    service_class = getattr(writer_module, service)
+    else:
+        config = {}
+
     module, cls = service.rsplit(".", 1)
     module = import_module(module)
     service_class = getattr(module, cls)

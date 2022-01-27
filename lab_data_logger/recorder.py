@@ -1,15 +1,13 @@
 """Classes and functions related to the Logger part of LDL."""
 
 import logging
-from copy import deepcopy
 from multiprocessing import Queue
-from typing import Type
 
 import rpyc
 
 from .common import Netloc
 from .puller import Puller
-from .writer import Writer
+from .writers import Writer
 
 logger = logging.getLogger("lab_data_logger.recorder")
 
@@ -27,13 +25,11 @@ class RecorderService(rpyc.Service):
         self.queue = Queue()
         self.connected_sources = {}
 
-    def set_writer(self, writer: Type[Writer], config: dict = {}) -> None:
+    def set_writer(self, writer: Writer) -> None:
         """
         Set the writer of the recorder.
         """
-        # Copy to make writer available to the Writer class.
-        writer = deepcopy(writer)
-        self.writer = writer(config)
+        self.writer = writer
         self.writer.connect_queue(self.queue)
         self.writer.write_process.start()
         logger.debug("Writer process started.")

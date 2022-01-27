@@ -8,7 +8,7 @@ class RandomNumberService(LabDataService):
     """A service that generates random numbers between 0.0 and 1.0."""
 
     def _get_data_fields(self, requested_fields: list[str] = []) -> Fields:
-        return {"random_number": random.random()}
+        return {"random_number": random()}
 
 
 class ConstNumberService(LabDataService):
