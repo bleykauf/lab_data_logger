@@ -7,9 +7,9 @@ from typing import Type
 
 import rpyc
 
-from .netloc import Netloc
+from .common import Netloc
 from .puller import Puller, Tags
-from .writer import PrintWriter, Writer
+from .writer import Writer
 
 logger = logging.getLogger("lab_data_logger.recorder")
 

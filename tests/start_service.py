@@ -1,4 +1,5 @@
-from lab_data_logger.services import start_service, RandomNumberService
+from lab_data_logger.services.base import start_service
+from lab_data_logger.services.examples import RandomNumberService
 
 
 def main():

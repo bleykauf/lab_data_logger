@@ -1,5 +1,5 @@
 import rpyc
-from lab_data_logger.netloc import Netloc
+from lab_data_logger.common import Netloc
 from lab_data_logger.writer import PrintWriter
 
 

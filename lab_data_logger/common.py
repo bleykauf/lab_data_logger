@@ -1,5 +1,3 @@
-"""Network location dataclass and utility functions."""
-
 from dataclasses import dataclass
 
 

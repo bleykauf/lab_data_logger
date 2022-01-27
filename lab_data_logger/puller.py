@@ -6,10 +6,8 @@ from time import sleep
 
 import rpyc
 
-from .netloc import Netloc
-from .services import Fields
-
-Tags = dict[str, str]
+from .common import Netloc
+from .typing import Fields, Tags
 
 logger = logging.getLogger("lab_data_logger.puller")
 

@@ -1,22 +1,15 @@
-"""
-LabDataService template class and two example implemenations.
-
-These are the objects that provide the data that we want to log.
-"""
+"""LabDataService template class."""
 
 import copy
 import logging
-import random
 from abc import ABC, abstractmethod
-from typing import Any, Union
+from typing import Any
 
 import rpyc
 
-debug_logger = logging.getLogger("lab_data_logger.services")
+from ..typing import Fields
 
-
-FieldValue = Union[int, float, str, bool]
-Fields = dict[str, FieldValue]
+logger = logging.getLogger("lab_data_logger.services")
 
 
 class LabDataService(ABC, rpyc.Service):
@@ -28,7 +21,6 @@ class LabDataService(ABC, rpyc.Service):
             config: Optional configuration data. Is stored as an attribute for use in
             `get_data_fields`.
         """
-
         super(LabDataService, self).__init__()
         self.config.update(config)  # overwrite default values
         # copy is necessary to have an actual dict and not a netref
@@ -56,16 +48,9 @@ class LabDataService(ABC, rpyc.Service):
         ...
 
 
-class RandomNumberService(LabDataService):
-    """A service that generates random numbers between 0.0 and 1.0."""
-
-    def get_data_fields(self, requested_fields: list[str] = []) -> Fields:
-        return {"random_number": random.random()}
-
-
 def start_service(service: LabDataService, port: int) -> None:
     """
-    Start a service in a ThreadedServer
+    Start a service in a ThreadedServer.
     """
     threaded_server = rpyc.ThreadedServer(
         service=service,
