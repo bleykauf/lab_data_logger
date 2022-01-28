@@ -12,7 +12,7 @@ logger = logging.getLogger("lab_data_logger.recorder")
 
 
 class Writer(ABC):
-    """Class that reads data from a queue and dumps to data somewhere."""
+    """Class that reads data from a queue and dumps the data somewhere."""
 
     def __init__(self, config: dict = {}) -> None:
         self.config = config
