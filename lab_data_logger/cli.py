@@ -1,18 +1,19 @@
-"""The command-line interface for ldl."""
-
 import logging
-import os
-import json
+from configparser import ConfigParser
+from importlib import import_module
 
 import click
 import click_log
 import rpyc
+from rpyc.core.protocol import DEFAULT_CONFIG
 
-from . import logger, services
-from .utils import parse_config
+from .common import Netloc
+from .recorder import RecorderService
 
-debug_logger = logging.getLogger("lab_data_logger")
-debug_logger.setLevel(logging.DEBUG)
+DEFAULT_CONFIG["allow_pickle"] = True
+
+logger = logging.getLogger("lab_data_logger")
+logger.setLevel(logging.DEBUG)
 
 console_formatter = click_log.ColorFormatter("%(message)s")
 console_handler = click_log.ClickHandler()
@@ -24,209 +25,165 @@ file_handler = logging.FileHandler("ldl.log", encoding="utf-8")
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(file_formatter)
 
-debug_logger.addHandler(console_handler)
-debug_logger.addHandler(file_handler)
-
-rpyc.core.protocol.DEFAULT_CONFIG["allow_pickle"] = True
-
-
-def apply_config(ctx, param, config):
-    """Apply the configuration file and overwrite default options of the command."""
-    config = parse_config(config)
-    ctx.default_map = config
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
 
 
 @click.group()
-@click_log.simple_verbosity_option(debug_logger)
+@click_log.simple_verbosity_option(logger)
 @click.version_option()
 def ldl():
     """CLI tool for using Lab Data Logger (LDL)."""
     pass
 
 
-@ldl.group("logger")
-@click.option(
-    "--port",
-    default=18860,
-    help="Port the Logger service should be started on (default 18860)",
-)
+@ldl.group("recorder")
+@click.argument("netloc", type=str)
 @click.pass_context
-def logger_cli(ctx, port):
-    """Manage the logger of LDL."""
-    ctx.obj = port  # store the port of the Logger
+def recorder(ctx, netloc: str):
+    """NETLOC is the network location 'hostname:port' where the Recorder is located."""
+    host, port = netloc.split(":")
+    ctx.obj = Netloc(host=host, port=int(port))
 
 
-@logger_cli.command()
+@recorder.command("start")
+@click.argument("writer", type=str)
 @click.option(
     "--config",
+    "config_file",
     type=click.Path(exists=True),
-    help="Path to configuration file",
-    is_eager=True,
-    callback=apply_config,
+    help="Configuration file path.",
 )
-@click.option(
-    "--host", default="localhost", help="Hostname of the InfluxDB (default localhost)"
-)
-@click.option("--port", default=8086, help="Port of the InfluxDB (default 8086)")
-@click.option("--user", default=None, help="Username of the InfluxDB (optional)")
-@click.option("--password", default=None, help="Password of the InfluxDB (optional)")
-@click.option("--database", help="Name of the database", prompt="Database name: ")
-@click.pass_obj  # pass the logger_port
-def start(logger_port, host, port, user, password, database, **kwargs):
-    """Start the logger."""
-    logger.start_logger(logger_port, host, port, user, password, database)
-
-
-@logger_cli.command()
-@click.argument("netloc")
-@click.argument("measurement")
-@click.option("--interval", default=1.0, help="Logging interval in seconds.")
 @click.pass_obj
-def add(logger_port, netloc, measurement, interval):
-    """
-    Add DataService located at NETLOC to the logger under the name MEASUREMENT.
+def start_recorder_and_set_writer(
+    recorder_netloc: Netloc, writer: str, config_file: str = ""
+) -> None:
 
-    NETLOC is a network location hostname:port or only the port (localhost is assumed).
-    The data will be written to the MEASUREMENT.
-    """
-    # FIXME: fields are not yet configurable from the command line
-    logger.add_puller_to_logger(logger_port, netloc, measurement, interval, fields=None)
+    # parse config
+    if config_file:
+        print(config_file)
+        config = ConfigParser()
+        config.read(config_file)
+        config = dict(config[writer])
+        writer = config.pop("class")
+    else:
+        config = {}
 
+    recorder = RecorderService()
+    module, cls = writer.rsplit(".", 1)
+    module = import_module(module)
+    writer_class = getattr(module, cls)
+    recorder.set_writer(writer_class(config))
 
-@logger_cli.command("batch-add")
-@click.argument("filename", type=click.Path(exists=True))
-@click.pass_obj
-def logger_batch_add(logger_port, filename):
-    """Add multiple services to the logger via FILENAME."""
-    with open(filename) as batch_file:
-        batch = json.load(batch_file)
-
-    for netloc, item in batch.items():
-        measurement = item["measurement"]
-        interval = item["interval"]
-        logger.add_puller_to_logger(
-            logger_port, netloc, measurement, interval, fields=None
-        )
-
-
-@logger_cli.command()
-@click.argument("netloc")
-@click.pass_obj
-def remove(logger_port, netloc):
-    """Remove DataService located at NETLOC from the logger."""
-    logger.remove_puller_from_logger(logger_port, netloc)
-
-
-@logger_cli.command("show")
-@click.pass_obj
-def logger_show(logger_port):
-    """Show the status of the logger."""
-    logger.show_logger_status(logger_port)
-
-
-@ldl.group("services")
-def services_cli():
-    """Manage the services of LDL."""
-    pass
-
-
-@services_cli.command("start")
-@click.argument("service")
-@click.argument("port")
-@click.option(
-    "--config", type=click.Path(exists=True), help="Path to configuration file"
-)
-def services_start(service, port, config):
-    """
-    Start SERVICE on PORT.
-
-    SERVICE is a dot-separated path to the DataService class that should be started,
-    e.g. ldl.services.RandomNumberService).
-    """
-    config = parse_config(config)
-    services.start_service(service, port, config)
-
-
-@services_cli.command("pull")
-@click.argument("netloc")
-def services_pull(netloc):
-    """
-    Pull from a service located at NETLOC.
-
-    NETLOC is a network location hostname:port or only the port (localhost is assumed).
-    """
-    print(services.pull_from_service(netloc))
-
-
-@services_cli.group()
-@click.option(
-    "--port",
-    default=18859,
-    help="Port the Manager runs on (default 18859)",
-)
-@click.pass_context
-def manager(ctx, port):
-    """Handle services managers of LDL."""
-    ctx.obj = port  # store the port of the ServiceManager
-
-
-@manager.command("start")
-@click.pass_obj  # pass the manager_port
-def manager_start(manager_port):
-    """Start a ServiceManager."""
-    services.start_service_manager(manager_port)
-
-
-@manager.command("add")
-@click.argument("service")
-@click.argument("port")
-@click.option(
-    "--config", type=click.Path(exists=True), help="Path to configuration file"
-)
-@click.pass_obj  # pass the manager_port
-def manager_add(manager_port, service, port, config):
-    """Start SERVICE on PORT and add it to the ServiceManager."""
-    config = parse_config(config)
-    working_dir = os.getcwd()
-    services.add_service_to_service_manager(
-        manager_port, service, port, config=config, working_dir=working_dir
+    threaded_server = rpyc.ThreadedServer(
+        service=recorder,
+        port=recorder_netloc.port,
+        protocol_config={"allow_public_attrs": True, "allow_pickle": True},
     )
+    threaded_server.start()
 
 
-@manager.command("remove")
-@click.argument("port")
-@click.pass_obj  # pass the manager_port
-def manager_remove(manager_port, port):
-    """Remove the serivce running on PORT from the ServiceManager."""
-    services.remove_service_from_service_manager(manager_port, port)
-
-
-@manager.command("show")
+@recorder.command("connect")
+@click.argument("netloc", type=str)
+@click.option(
+    "--interval", default=1.0, help="Interval in seconds to check for new data."
+)
+@click.option(
+    "--measurement", required=True, prompt=True, help="Measurement to record."
+)
 @click.pass_obj
-def manager_show(manager_port):
-    """Show the status of the service manager."""
-    services.show_service_manager_status(manager_port)
+def connect_service_to_recorder(
+    recorder_netloc: Netloc,
+    netloc: str,
+    interval: float,
+    measurement: str,
+) -> None:
+    """
+    Connect a DataService located at NETLOC to the Recorder under the name MEASUREMENT.
 
-
-@manager.command("batch-add")
-@click.argument("filename", type=click.Path(exists=True))
-@click.pass_obj
-def manager_batch_add(manager_port, filename):
-    """Add multiple services to the service manager via FILENAME."""
-    with open(filename) as batch_file:
-        batch = json.load(batch_file)
-
-    for port, item in batch.items():
-        port = int(port)
-        config_path = os.path.abspath(item["config"])
-        with open(config_path) as config_file:
-            config = json.load(config_file)
-        service = item["service"]
-        working_dir = os.getcwd()
-        services.add_service_to_service_manager(
-            manager_port, service, port, config=config, working_dir=working_dir
+    NETLOC is a network location 'hostname:port'.
+    """
+    # parse netloc and create Netloc object
+    host, port = netloc.split(":")
+    service_netloc = Netloc(host=host, port=int(port))
+    # connect to recorder and connect to service
+    with rpyc.connect(recorder_netloc.host, recorder_netloc.port) as connection:
+        connection.root.connect_source(
+            service_netloc, interval=interval, measurement=measurement
         )
 
 
-if __name__ == "__main__":
-    ldl()
+@recorder.command("disconnect")
+@click.argument("netloc", type=str)
+@click.pass_obj
+def disconnect_service_from_recorder(
+    recorder_netloc: Netloc, service_netloc: str
+) -> None:
+    """
+    Disconnect a DataService located at NETLOC from the Recorder.
+
+    NETLOC is a network location 'hostname:port'.
+    """
+    # connect to recorder
+    # parse netloc and create Netloc object
+    host, port = service_netloc.split(":")
+    netloc = Netloc(host=host, port=int(port))
+    # connect recorder annd disconnect from service
+    with rpyc.connect(recorder_netloc.host, recorder_netloc.port) as connection:
+        connection.root.disconnect_source(netloc)
+
+
+@ldl.group("service")
+@click.argument("netloc", type=str)
+@click.pass_context
+def service(ctx, netloc: str):
+    """NETLOC is the network location 'hostname:port' where the Service is located."""
+    host, port = netloc.split(":")
+    ctx.obj = Netloc(host=host, port=int(port))
+
+
+@service.command("start")
+@click.argument("service", type=str)
+@click.option(
+    "--config",
+    "config_file",
+    type=click.Path(exists=True),
+    help="Configuration file path.",
+)
+@click.pass_obj
+def start_service(netloc: Netloc, service: str, config_file: str = "") -> None:
+    """
+    Start a DataService located at NETLOC.
+
+    NETLOC is a network location 'hostname:port'.
+    """
+    # parse config
+    if config_file:
+        config = ConfigParser()
+        config.read(config_file)
+        config = dict(config[service])
+
+    else:
+        config = {}
+
+    module, cls = service.rsplit(".", 1)
+    module = import_module(module)
+    service_class = getattr(module, cls)
+
+    threaded_server = rpyc.ThreadedServer(
+        service=service_class(config),
+        port=netloc.port,
+        protocol_config={"allow_public_attrs": True, "allow_pickle": True},
+    )
+    threaded_server.start()
+
+
+@service.command("pull")
+@click.pass_obj
+def pull_from_service(netloc: Netloc) -> None:
+    """
+    Pull data from a LabDataService located at NETLOC.
+    """
+    with rpyc.connect(netloc.host, netloc.port) as connection:
+        data = connection.root.get_data()
+    print(data)
