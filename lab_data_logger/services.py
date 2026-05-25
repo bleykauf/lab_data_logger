@@ -4,7 +4,6 @@ LabDataService template class and one example implemenation.
 These are the objects that provide the data that we want to log.
 """
 
-
 import logging
 import random
 import copy
